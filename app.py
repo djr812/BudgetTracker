@@ -21,11 +21,35 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Email configuration
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_SERVER'] = "mx3594.syd1.mymailhosting.com"
 app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
-app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')
+app.config['MAIL_USE_TLS'] = False
+app.config['MAIL_USE_SSL'] = False
+
+# Load email credentials from environment variables
+email_user = os.getenv('EMAIL_USER')
+email_password = os.getenv('EMAIL_PASSWORD')
+
+if not email_user or not email_password:
+    app.logger.error("Email credentials not found in environment variables")
+    raise ValueError("Email credentials must be set in environment variables")
+
+app.config['MAIL_USERNAME'] = email_user
+app.config['MAIL_PASSWORD'] = email_password
+app.config['MAIL_DEFAULT_SENDER'] = email_user
+app.config['MAIL_MAX_EMAILS'] = None
+app.config['MAIL_ASCII_ATTACHMENTS'] = False
+app.config['MAIL_DEBUG'] = True  # Enable debug mode
+
+# Debug logging for email configuration (without exposing sensitive data)
+print("Email Configuration:")
+print(f"MAIL_USERNAME: {app.config['MAIL_USERNAME']}")
+print(f"MAIL_PASSWORD: {'*' * len(app.config['MAIL_PASSWORD']) if app.config['MAIL_PASSWORD'] else 'None'}")
+print(f"MAIL_DEFAULT_SENDER: {app.config['MAIL_DEFAULT_SENDER']}")
+print(f"MAIL_SERVER: {app.config['MAIL_SERVER']}")
+print(f"MAIL_PORT: {app.config['MAIL_PORT']}")
+print(f"MAIL_USE_TLS: {app.config['MAIL_USE_TLS']}")
+print(f"MAIL_USE_SSL: {app.config['MAIL_USE_SSL']}")
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -104,11 +128,81 @@ def login():
         password = request.form.get('password')
         user = User.query.get(user_id)
         
-        if user and user.check_password(password):  # Use the new check_password method
+        if user and user.check_password(password):
             login_user(user)
             return redirect(url_for('dashboard'))
         flash('Invalid user ID or password')
     return render_template('login.html')
+
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_request():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        
+        if user:
+            token = get_reset_token(user.userID)
+            reset_url = url_for('reset_token', token=token, _external=True)
+            
+            # Ensure we have valid email configuration
+            if not app.config['MAIL_USERNAME'] or not app.config['MAIL_PASSWORD']:
+                app.logger.error("Email configuration is missing")
+                flash('Email service is not properly configured. Please contact support.', 'error')
+                return redirect(url_for('login'))
+            
+            msg = Message('Password Reset Request',
+                        sender=(app.config['MAIL_USERNAME'], app.config['MAIL_USERNAME']),  # Use email as both name and address
+                        recipients=[user.email])
+            msg.body = f'''To reset your password, visit the following link:
+{reset_url}
+
+If you did not make this request, please ignore this email.
+'''
+            try:
+                mail.send(msg)
+                flash('An email has been sent with instructions to reset your password.', 'info')
+                return redirect(url_for('login'))
+            except Exception as e:
+                app.logger.error(f"Failed to send email: {str(e)}")
+                flash('Error sending email. Please try again later.', 'error')
+        else:
+            flash('No account found with that email address.', 'error')
+    
+    return render_template('reset_request.html')
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_token(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    
+    user_id = verify_reset_token(token)
+    if user_id is None:
+        flash('Invalid or expired reset token', 'error')
+        return redirect(url_for('reset_request'))
+    
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('reset_token.html')
+        
+        user = User.query.get(user_id)
+        user.set_password(password)
+        
+        try:
+            db.session.commit()
+            flash('Your password has been updated! You can now log in.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating password. Please try again.', 'error')
+    
+    return render_template('reset_token.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -118,11 +212,17 @@ def register():
         password = request.form.get('password')
         first_name = request.form.get('first_name')
         last_name = request.form.get('last_name')
+        email = request.form.get('email')
         budget = float(request.form.get('budget'))
 
         # Check if user already exists
         if User.query.get(user_id):
             flash('User ID already exists')
+            return redirect(url_for('register'))
+        
+        # Check if email already exists
+        if User.query.filter_by(email=email).first():
+            flash('Email address already registered')
             return redirect(url_for('register'))
 
         # Create new user
@@ -130,6 +230,7 @@ def register():
             userID=user_id,
             fName=first_name,
             lName=last_name,
+            email=email,
             userBudget=budget
         )
         new_user.set_password(password)  # Hash the password before saving
