@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Categories - Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Add Category Form -->
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h4>Add New Category</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('add_category') }}" onsubmit="return validateCategoryForm()">
+                    <div class="mb-3">
+                        <label for="categoryId" class="form-label">Category ID</label>
+                        <input type="text" class="form-control" id="categoryId" name="categoryId" 
+                               pattern="[0-9]{4}" title="Must be exactly 4 digits" required>
+                        <div class="form-text">Enter a 4-digit number between 1000-9999</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="categoryName" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="categoryName" name="categoryName" 
+                               maxlength="30" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add Category</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Categories List -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4>Existing Categories</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Name</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for category in categories %}
+                            <tr>
+                                <td>{{ category.catID }}</td>
+                                <td>{{ category.catName }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary edit-category" 
+                                            data-id="{{ category.catID }}"
+                                            data-name="{{ category.catName }}">Edit</button>
+                                    <button class="btn btn-sm btn-danger delete-category" 
+                                            data-id="{{ category.catID }}">Delete</button>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3" class="text-center">No categories found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Category Modal -->
+<div class="modal fade" id="editCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Edit Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editCategoryForm" method="POST">
+                    <div class="mb-3">
+                        <label for="editCategoryName" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="editCategoryName" name="categoryName" 
+                               maxlength="30" required>
+                    </div>
+                    <input type="hidden" id="editCategoryId" name="categoryId">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveEditCategory">Save Changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
