@@ -1,19 +1,20 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_migrate import Migrate
 from flask_mail import Mail, Message
 from datetime import datetime, timedelta
 import os
-from dotenv import load_dotenv
 import uuid
 import csv
 from io import StringIO
 from werkzeug.security import generate_password_hash, check_password_hash
 from itsdangerous import URLSafeTimedSerializer
+from flask_wtf import FlaskForm
+from wtforms import FloatField, StringField, DateField, SelectField, SubmitField
+from wtforms.validators import DataRequired, NumberRange, Length
+from sqlalchemy.sql import func
 
-# Load environment variables
-load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
@@ -80,6 +81,7 @@ class User(UserMixin, db.Model):
     lName = db.Column(db.String(15), nullable=False)
     userBudget = db.Column(db.Float, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)  # Add email field
+    monthlyIncome = db.Column(db.Float, nullable=False, default=0.0)  # Add monthly income field
 
     def get_id(self):
         return str(self.userID)
@@ -104,11 +106,24 @@ class Transaction(db.Model):
     catID = db.Column(db.String(20), db.ForeignKey('categories.catID'), nullable=False)
     tranDescription = db.Column(db.String(50), nullable=False)
     tranAmount = db.Column(db.Float, nullable=False)
+    isExpense = db.Column(db.Boolean, nullable=False, default=True)  # Add flag to distinguish between expense and revenue
 
 class UserTransaction(db.Model):
     __tablename__ = 'userTransactions'
     userID = db.Column(db.String(20), db.ForeignKey('users.userID'), primary_key=True)
     tranID = db.Column(db.String(20), db.ForeignKey('transactions.tranID'), primary_key=True)
+
+# Add Revenue model
+class Revenue(db.Model):
+    __tablename__ = 'revenues'
+    revID = db.Column(db.String(20), primary_key=True)
+    revDate = db.Column(db.Date, nullable=False)
+    revTime = db.Column(db.String(5), nullable=False)
+    revDescription = db.Column(db.String(50), nullable=False)
+    revAmount = db.Column(db.Float, nullable=False)
+    revType = db.Column(db.String(20), nullable=False)  # e.g., 'salary', 'freelance', 'investments', etc.
+    userID = db.Column(db.String(20), db.ForeignKey('users.userID'), nullable=False)
+    user = db.relationship('User', backref=db.backref('revenues', lazy=True))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -154,7 +169,7 @@ def reset_request():
                 return redirect(url_for('login'))
             
             msg = Message('Password Reset Request',
-                        sender=(app.config['MAIL_USERNAME'], app.config['MAIL_USERNAME']),  # Use email as both name and address
+                        sender=("Budget Tracker App", app.config['MAIL_USERNAME']),  # Use email as both name and address
                         recipients=[user.email])
             msg.body = f'''To reset your password, visit the following link:
 {reset_url}
@@ -250,12 +265,75 @@ def register():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    # Get the 5 most recent transactions
+    # Get current month's start and end dates
+    today = datetime.now()
+    month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_end = (month_start + timedelta(days=32)).replace(day=1) - timedelta(days=1)
+    
+    # Get monthly expenses using the join table
+    monthly_expenses = Transaction.query.join(UserTransaction).filter(
+        UserTransaction.userID == current_user.userID,
+        Transaction.tranDate >= month_start,
+        Transaction.tranDate <= month_end
+    ).all()
+    
+    # Get monthly revenue
+    monthly_revenue = Revenue.query.filter(
+        Revenue.userID == current_user.userID,
+        Revenue.revDate >= month_start,
+        Revenue.revDate <= month_end
+    ).all()
+    
+    # Calculate totals
+    total_expenses = sum(expense.tranAmount for expense in monthly_expenses)
+    total_revenue = sum(revenue.revAmount for revenue in monthly_revenue)
+    
+    # Get recent transactions using the join table
     recent_transactions = Transaction.query.join(UserTransaction).filter(
         UserTransaction.userID == current_user.userID
-    ).order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc()).limit(5).all()
+    ).order_by(Transaction.tranDate.desc()).limit(5).all()
     
-    return render_template('dashboard.html', recent_transactions=recent_transactions)
+    # Get recent revenues
+    recent_revenues = Revenue.query.filter_by(userID=current_user.userID)\
+        .order_by(Revenue.revDate.desc())\
+        .limit(5)\
+        .all()
+    
+    # Get category breakdown using the join table
+    category_expenses = db.session.query(
+        Transaction.catID,
+        func.sum(Transaction.tranAmount).label('total')
+    ).join(UserTransaction).filter(
+        UserTransaction.userID == current_user.userID,
+        Transaction.tranDate >= month_start,
+        Transaction.tranDate <= month_end
+    ).group_by(Transaction.catID).all()
+    
+    # Get revenue breakdown
+    category_revenues = db.session.query(
+        Revenue.revType,
+        func.sum(Revenue.revAmount).label('total')
+    ).filter(
+        Revenue.userID == current_user.userID,
+        Revenue.revDate >= month_start,
+        Revenue.revDate <= month_end
+    ).group_by(Revenue.revType).all()
+    
+    # Prepare data for charts
+    expense_categories = [cat[0] for cat in category_expenses]
+    expense_amounts = [float(cat[1]) for cat in category_expenses]
+    revenue_categories = [cat[0] for cat in category_revenues]
+    revenue_amounts = [float(cat[1]) for cat in category_revenues]
+    
+    return render_template('dashboard.html',
+                         monthly_expenses=total_expenses,
+                         monthly_revenue=total_revenue,
+                         recent_transactions=recent_transactions,
+                         recent_revenues=recent_revenues,
+                         expense_categories=expense_categories,
+                         expense_amounts=expense_amounts,
+                         revenue_categories=revenue_categories,
+                         revenue_amounts=revenue_amounts)
 
 @app.route('/logout')
 @login_required
@@ -478,101 +556,127 @@ def delete_category(cat_id):
 @app.route('/reports')
 @login_required
 def reports():
-    # Get filter parameters
-    category_id = request.args.get('category')
+    # Get date range from query parameters or use default (last 30 days)
+    end_date = datetime.now()
+    start_date = request.args.get('start_date', (end_date - timedelta(days=30)).strftime('%Y-%m-%d'))
+    end_date = request.args.get('end_date', end_date.strftime('%Y-%m-%d'))
     
-    # Get current transactions and total amount
-    query = Transaction.query.join(UserTransaction).filter(
-        UserTransaction.userID == current_user.userID
-    )
+    # Convert string dates to datetime objects
+    start_date = datetime.strptime(start_date, '%Y-%m-%d')
+    end_date = datetime.strptime(end_date, '%Y-%m-%d')
     
-    # Apply category filter if specified
-    if category_id:
-        query = query.filter(Transaction.catID == category_id)
+    # Get expenses for the date range
+    expenses = Transaction.query.join(UserTransaction).filter(
+        UserTransaction.userID == current_user.userID,
+        Transaction.tranDate >= start_date,
+        Transaction.tranDate <= end_date
+    ).all()
     
-    current_transactions = query.order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc()).all()
+    # Get revenue for the date range
+    revenues = Revenue.query.filter(
+        Revenue.userID == current_user.userID,
+        Revenue.revDate >= start_date,
+        Revenue.revDate <= end_date
+    ).all()
     
-    total_amount = sum(t.tranAmount for t in current_transactions)
-    total_transactions = len(current_transactions)
-    avg_transaction = total_amount / total_transactions if total_transactions > 0 else 0
+    # Calculate totals
+    total_expenses = sum(expense.tranAmount for expense in expenses)
+    total_revenue = sum(revenue.revAmount for revenue in revenues)
     
-    # Prepare data for charts
-    category_data = {}
-    monthly_data = {}
+    # Get expense categories breakdown
+    expense_categories_raw = db.session.query(
+        Category.catName.label('name'),
+        func.sum(Transaction.tranAmount).label('amount')
+    ).join(Transaction, Category.catID == Transaction.catID)\
+    .join(UserTransaction, Transaction.tranID == UserTransaction.tranID)\
+    .filter(
+        UserTransaction.userID == current_user.userID,
+        Transaction.tranDate >= start_date,
+        Transaction.tranDate <= end_date
+    ).group_by(Category.catName).all()
     
-    for t in current_transactions:
-        # Category data
-        if t.category.catName not in category_data:
-            category_data[t.category.catName] = 0
-        category_data[t.category.catName] += t.tranAmount
-        
-        # Monthly data
-        month_key = t.tranDate.strftime('%Y-%m')
-        if month_key not in monthly_data:
-            monthly_data[month_key] = 0
-        monthly_data[month_key] += t.tranAmount
+    # Convert expense categories to list of dictionaries with percentages
+    expense_categories = []
+    for cat in expense_categories_raw:
+        expense_categories.append({
+            'name': cat.name,
+            'amount': float(cat.amount),
+            'percentage': (float(cat.amount) / total_expenses * 100) if total_expenses > 0 else 0
+        })
     
-    # Sort monthly data
-    monthly_data = dict(sorted(monthly_data.items()))
+    # Get revenue categories breakdown
+    revenue_categories_raw = db.session.query(
+        Revenue.revType.label('name'),
+        func.sum(Revenue.revAmount).label('amount')
+    ).filter(
+        Revenue.userID == current_user.userID,
+        Revenue.revDate >= start_date,
+        Revenue.revDate <= end_date
+    ).group_by(Revenue.revType).all()
     
-    # Get all categories for the category report form
-    categories = Category.query.all()
+    # Convert revenue categories to list of dictionaries with percentages
+    revenue_categories = []
+    for cat in revenue_categories_raw:
+        revenue_categories.append({
+            'name': cat.name,
+            'amount': float(cat.amount),
+            'percentage': (float(cat.amount) / total_revenue * 100) if total_revenue > 0 else 0
+        })
     
-    # Prepare category report data if category is selected
-    category_report = None
-    category_total = 0
-    category_avg = 0
-    category_count = 0
-    category_trend_labels = []
-    category_trend_data = []
+    # Get daily trend data
+    daily_expenses = db.session.query(
+        func.date(Transaction.tranDate).label('date'),
+        func.sum(Transaction.tranAmount).label('amount')
+    ).join(UserTransaction).filter(
+        UserTransaction.userID == current_user.userID,
+        Transaction.tranDate >= start_date,
+        Transaction.tranDate <= end_date
+    ).group_by(func.date(Transaction.tranDate)).all()
     
-    if category_id:
-        category_report = current_transactions
-        category_total = total_amount
-        category_avg = avg_transaction
-        category_count = total_transactions
-        
-        # Prepare category trend data
-        for t in category_report:
-            date_key = t.tranDate.strftime('%Y-%m-%d')
-            if date_key not in category_trend_data:
-                category_trend_data[date_key] = 0
-            category_trend_data[date_key] += t.tranAmount
-        
-        category_trend_data = dict(sorted(category_trend_data.items()))
-        category_trend_labels = list(category_trend_data.keys())
-        category_trend_data = list(category_trend_data.values())
+    daily_revenues = db.session.query(
+        func.date(Revenue.revDate).label('date'),
+        func.sum(Revenue.revAmount).label('amount')
+    ).filter(
+        Revenue.userID == current_user.userID,
+        Revenue.revDate >= start_date,
+        Revenue.revDate <= end_date
+    ).group_by(func.date(Revenue.revDate)).all()
     
-    # Initialize date report variables with empty values
-    date_report = None
-    date_total = 0
-    date_count = 0
-    date_daily_avg = 0
-    date_range_labels = []
-    date_range_data = []
+    # Create date range for trend chart
+    date_range = []
+    current_date = start_date
+    while current_date <= end_date:
+        date_range.append(current_date.strftime('%Y-%m-%d'))
+        current_date += timedelta(days=1)
+    
+    # Prepare trend data
+    expense_trend = [0] * len(date_range)
+    revenue_trend = [0] * len(date_range)
+    
+    for expense in daily_expenses:
+        date_index = date_range.index(expense.date.strftime('%Y-%m-%d'))
+        expense_trend[date_index] = float(expense.amount)
+    
+    for revenue in daily_revenues:
+        date_index = date_range.index(revenue.date.strftime('%Y-%m-%d'))
+        revenue_trend[date_index] = float(revenue.amount)
+    
+    # Prepare category data for charts
+    category_labels = [cat['name'] for cat in expense_categories] + [cat['name'] for cat in revenue_categories]
+    category_data = [cat['amount'] for cat in expense_categories] + [cat['amount'] for cat in revenue_categories]
     
     return render_template('reports.html',
-                         current_transactions=current_transactions,
-                         total_amount=total_amount,
-                         total_transactions=total_transactions,
-                         avg_transaction=avg_transaction,
-                         category_labels=list(category_data.keys()),
-                         category_data=list(category_data.values()),
-                         monthly_labels=list(monthly_data.keys()),
-                         monthly_data=list(monthly_data.values()),
-                         categories=categories,
-                         category_report=category_report,
-                         category_total=category_total,
-                         category_avg=category_avg,
-                         category_count=category_count,
-                         category_trend_labels=category_trend_labels,
-                         category_trend_data=category_trend_data,
-                         date_report=date_report,
-                         date_total=date_total,
-                         date_count=date_count,
-                         date_daily_avg=date_daily_avg,
-                         date_range_labels=date_range_labels,
-                         date_range_data=date_range_data)
+                         start_date=start_date.strftime('%Y-%m-%d'),
+                         end_date=end_date.strftime('%Y-%m-%d'),
+                         total_expenses=total_expenses,
+                         total_revenue=total_revenue,
+                         expense_categories=expense_categories,
+                         revenue_categories=revenue_categories,
+                         trend_labels=date_range,
+                         expense_trend=expense_trend,
+                         revenue_trend=revenue_trend,
+                         category_labels=category_labels,
+                         category_data=category_data)
 
 @app.route('/reports/category')
 @login_required
@@ -833,6 +937,95 @@ def export_report(report_type, format):
     else:
         flash('Invalid export format.', 'error')
         return redirect(url_for('reports'))
+
+# Revenue Management Routes
+class RevenueForm(FlaskForm):
+    amount = FloatField('Amount', validators=[DataRequired(), NumberRange(min=0.01)])
+    description = StringField('Description', validators=[DataRequired(), Length(max=200)])
+    date = DateField('Date', validators=[DataRequired()])
+    category = SelectField('Category', choices=[
+        ('salary', 'Salary'),
+        ('freelance', 'Freelance'),
+        ('investments', 'Investments'),
+        ('rental', 'Rental Income'),
+        ('other', 'Other')
+    ], validators=[DataRequired()])
+    submit = SubmitField('Save')
+
+@app.route('/revenues/add', methods=['GET', 'POST'])
+@login_required
+def add_revenue():
+    form = RevenueForm()
+    if form.validate_on_submit():
+        revenue = Revenue(
+            revID=str(uuid.uuid4())[:8],
+            revDate=form.date.data,
+            revTime=datetime.now().strftime('%H:%M'),
+            revDescription=form.description.data,
+            revAmount=form.amount.data,
+            revType=form.category.data,
+            userID=current_user.userID
+        )
+        db.session.add(revenue)
+        db.session.commit()
+        flash('Revenue added successfully!', 'success')
+        return redirect(url_for('view_revenues'))
+    return render_template('add_revenue.html', form=form)
+
+@app.route('/revenues')
+@login_required
+def view_revenues():
+    page = request.args.get('page', 1, type=int)
+    per_page = 10
+    
+    revenues = Revenue.query.filter_by(userID=current_user.userID)\
+        .order_by(Revenue.revDate.desc())\
+        .paginate(page=page, per_page=per_page)
+    
+    total_revenue = db.session.query(func.sum(Revenue.revAmount))\
+        .filter_by(userID=current_user.userID)\
+        .scalar() or 0
+    
+    return render_template('view_revenues.html',
+                         revenues=revenues.items,
+                         total_revenue=total_revenue,
+                         pages=revenues.pages,
+                         current_page=page)
+
+@app.route('/revenues/<string:revenue_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_revenue(revenue_id):
+    revenue = Revenue.query.get_or_404(revenue_id)
+    
+    if revenue.userID != current_user.userID:
+        abort(403)
+    
+    form = RevenueForm(obj=revenue)
+    if form.validate_on_submit():
+        revenue.revAmount = form.amount.data
+        revenue.revDescription = form.description.data
+        revenue.revDate = form.date.data
+        revenue.revType = form.category.data
+        
+        db.session.commit()
+        flash('Revenue updated successfully!', 'success')
+        return redirect(url_for('view_revenues'))
+    
+    return render_template('edit_revenue.html', form=form, revenue=revenue)
+
+@app.route('/revenues/<string:revenue_id>/delete', methods=['POST'])
+@login_required
+def delete_revenue(revenue_id):
+    revenue = Revenue.query.get_or_404(revenue_id)
+    
+    if revenue.userID != current_user.userID:
+        abort(403)
+    
+    db.session.delete(revenue)
+    db.session.commit()
+    
+    flash('Revenue deleted successfully!', 'success')
+    return redirect(url_for('view_revenues'))
 
 if __name__ == '__main__':
     app.run(debug=True) 

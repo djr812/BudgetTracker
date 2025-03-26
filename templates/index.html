@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Welcome - Expense Tracker{% endblock %}
+{% block title %}Welcome - Budget Tracker{% endblock %}
 
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-8 text-center">
-            <h1 class="display-4 mb-4">Welcome to Expense Tracker</h1>
+            <h1 class="display-4 mb-4">Welcome to Budget Tracker</h1>
             <p class="lead mb-4">Track your expenses, manage your budget, and gain insights into your spending habits.</p>
             
             {% if current_user.is_authenticated %}
