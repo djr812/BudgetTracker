@@ -1,40 +1,76 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from datetime import datetime
+from flask_migrate import Migrate
+from flask_mail import Mail, Message
+from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
 import uuid
 import csv
 from io import StringIO
+from werkzeug.security import generate_password_hash, check_password_hash
+from itsdangerous import URLSafeTimedSerializer
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'your-secret-key-here')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'mssql+pyodbc://djr040:@djr040.database.windows.net:1433/Exp_Tracker?driver=ODBC+Driver+18+for+SQL+Server')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Email configuration
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')
 
 # Initialize extensions
 db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+mail = Mail(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+
+def get_reset_token(user_id):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    return serializer.dumps(user_id, salt='password-reset-salt')
+
+def verify_reset_token(token, expiration=3600):
+    serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        user_id = serializer.loads(token, salt='password-reset-salt', max_age=expiration)
+        return user_id
+    except:
+        return None
 
 # Models
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     userID = db.Column(db.String(20), primary_key=True)
-    userPwd = db.Column(db.String(20), nullable=False)
+    userPwd = db.Column(db.String(256), nullable=False)  # Increased length for hash
     fName = db.Column(db.String(15), nullable=False)
     lName = db.Column(db.String(15), nullable=False)
     userBudget = db.Column(db.Float, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)  # Add email field
+
+    def get_id(self):
+        return str(self.userID)
+
+    def set_password(self, password):
+        self.userPwd = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.userPwd, password)
 
 class Category(db.Model):
     __tablename__ = 'categories'
     catID = db.Column(db.String(20), primary_key=True)
     catName = db.Column(db.String(30), nullable=False)
+    transactions = db.relationship('Transaction', backref='category', lazy=True)
 
 class Transaction(db.Model):
     __tablename__ = 'transactions'
@@ -68,7 +104,7 @@ def login():
         password = request.form.get('password')
         user = User.query.get(user_id)
         
-        if user and user.userPwd == password:
+        if user and user.check_password(password):  # Use the new check_password method
             login_user(user)
             return redirect(url_for('dashboard'))
         flash('Invalid user ID or password')
@@ -92,23 +128,33 @@ def register():
         # Create new user
         new_user = User(
             userID=user_id,
-            userPwd=password,
             fName=first_name,
             lName=last_name,
             userBudget=budget
         )
-        db.session.add(new_user)
-        db.session.commit()
+        new_user.set_password(password)  # Hash the password before saving
         
-        flash('Registration successful! Please login.')
-        return redirect(url_for('login'))
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Registration successful! Please login.')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error during registration. Please try again.')
+            return redirect(url_for('register'))
     
     return render_template('register.html')
 
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    # Get the 5 most recent transactions
+    recent_transactions = Transaction.query.join(UserTransaction).filter(
+        UserTransaction.userID == current_user.userID
+    ).order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc()).limit(5).all()
+    
+    return render_template('dashboard.html', recent_transactions=recent_transactions)
 
 @app.route('/logout')
 @login_required
@@ -331,10 +377,19 @@ def delete_category(cat_id):
 @app.route('/reports')
 @login_required
 def reports():
+    # Get filter parameters
+    category_id = request.args.get('category')
+    
     # Get current transactions and total amount
-    current_transactions = Transaction.query.join(UserTransaction).filter(
+    query = Transaction.query.join(UserTransaction).filter(
         UserTransaction.userID == current_user.userID
-    ).order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc()).all()
+    )
+    
+    # Apply category filter if specified
+    if category_id:
+        query = query.filter(Transaction.catID == category_id)
+    
+    current_transactions = query.order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc()).all()
     
     total_amount = sum(t.tranAmount for t in current_transactions)
     total_transactions = len(current_transactions)
@@ -362,6 +417,39 @@ def reports():
     # Get all categories for the category report form
     categories = Category.query.all()
     
+    # Prepare category report data if category is selected
+    category_report = None
+    category_total = 0
+    category_avg = 0
+    category_count = 0
+    category_trend_labels = []
+    category_trend_data = []
+    
+    if category_id:
+        category_report = current_transactions
+        category_total = total_amount
+        category_avg = avg_transaction
+        category_count = total_transactions
+        
+        # Prepare category trend data
+        for t in category_report:
+            date_key = t.tranDate.strftime('%Y-%m-%d')
+            if date_key not in category_trend_data:
+                category_trend_data[date_key] = 0
+            category_trend_data[date_key] += t.tranAmount
+        
+        category_trend_data = dict(sorted(category_trend_data.items()))
+        category_trend_labels = list(category_trend_data.keys())
+        category_trend_data = list(category_trend_data.values())
+    
+    # Initialize date report variables with empty values
+    date_report = None
+    date_total = 0
+    date_count = 0
+    date_daily_avg = 0
+    date_range_labels = []
+    date_range_data = []
+    
     return render_template('reports.html',
                          current_transactions=current_transactions,
                          total_amount=total_amount,
@@ -371,7 +459,19 @@ def reports():
                          category_data=list(category_data.values()),
                          monthly_labels=list(monthly_data.keys()),
                          monthly_data=list(monthly_data.values()),
-                         categories=categories)
+                         categories=categories,
+                         category_report=category_report,
+                         category_total=category_total,
+                         category_avg=category_avg,
+                         category_count=category_count,
+                         category_trend_labels=category_trend_labels,
+                         category_trend_data=category_trend_data,
+                         date_report=date_report,
+                         date_total=date_total,
+                         date_count=date_count,
+                         date_daily_avg=date_daily_avg,
+                         date_range_labels=date_range_labels,
+                         date_range_data=date_range_data)
 
 @app.route('/reports/category')
 @login_required

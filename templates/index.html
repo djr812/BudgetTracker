@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Welcome - Expense Tracker{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <h1 class="display-4 mb-4">Welcome to Expense Tracker</h1>
+            <p class="lead mb-4">Track your expenses, manage your budget, and gain insights into your spending habits.</p>
+            
+            {% if current_user.is_authenticated %}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg me-md-2">Go to Dashboard</a>
+                    <a href="{{ url_for('logout') }}" class="btn btn-outline-secondary btn-lg">Logout</a>
+                </div>
+            {% else %}
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <a href="{{ url_for('login') }}" class="btn btn-primary btn-lg me-md-2">Login</a>
+                    <a href="{{ url_for('register') }}" class="btn btn-outline-primary btn-lg">Register</a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h3 class="card-title">Track Expenses</h3>
+                    <p class="card-text">Easily record and categorize your daily expenses to keep track of your spending.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h3 class="card-title">Manage Budget</h3>
+                    <p class="card-text">Set and monitor your budget limits to stay on top of your financial goals.</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100">
+                <div class="card-body text-center">
+                    <h3 class="card-title">Generate Reports</h3>
+                    <p class="card-text">Get detailed insights into your spending patterns with customizable reports.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

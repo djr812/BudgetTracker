@@ -21,9 +21,6 @@
                     <a href="#dateReport" class="list-group-item list-group-item-action" data-bs-toggle="list">
                         Date Range Report
                     </a>
-                    <a href="#timeReport" class="list-group-item list-group-item-action" data-bs-toggle="list">
-                        Time Range Report
-                    </a>
                 </div>
             </div>
         </div>
@@ -138,7 +135,7 @@
                         <h4>Category Report</h4>
                     </div>
                     <div class="card-body">
-                        <form method="GET" action="{{ url_for('category_report') }}" class="mb-4">
+                        <form method="GET" action="{{ url_for('reports') }}" class="mb-4">
                             <div class="mb-3">
                                 <label for="category" class="form-label">Select Category</label>
                                 <select class="form-select" id="category" name="category" required>
@@ -317,103 +314,6 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Time Range Report -->
-            <div class="tab-pane fade" id="timeReport">
-                <div class="card">
-                    <div class="card-header">
-                        <h4>Time Range Report</h4>
-                    </div>
-                    <div class="card-body">
-                        <form method="GET" action="{{ url_for('time_report') }}" class="mb-4">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="timeFrom" class="form-label">From Time</label>
-                                        <input type="time" class="form-control" id="timeFrom" name="time_from" required>
-                                    </div>
-                                </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="timeTo" class="form-label">To Time</label>
-                                        <input type="time" class="form-control" id="timeTo" name="time_to" required>
-                                    </div>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Generate Report</button>
-                        </form>
-
-                        {% if time_report %}
-                        <!-- Time Range Analytics -->
-                        <div class="row mb-4">
-                            <div class="col-md-4">
-                                <div class="card bg-primary text-white">
-                                    <div class="card-body">
-                                        <h5 class="card-title">Period Total</h5>
-                                        <h3 class="card-text">{{ "%.2f"|format(time_total) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card bg-success text-white">
-                                    <div class="card-body">
-                                        <h5 class="card-title">Average Transaction</h5>
-                                        <h3 class="card-text">{{ "%.2f"|format(time_avg) }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="card bg-info text-white">
-                                    <div class="card-body">
-                                        <h5 class="card-title">Total Transactions</h5>
-                                        <h3 class="card-text">{{ time_count }}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Time Range Chart -->
-                        <div class="card mb-4">
-                            <div class="card-body">
-                                <h5 class="card-title">Hourly Distribution</h5>
-                                <canvas id="timeRangeChart"></canvas>
-                            </div>
-                        </div>
-
-                        <div class="table-responsive">
-                            <table class="table table-striped">
-                                <thead>
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>Time</th>
-                                        <th>Category</th>
-                                        <th>Description</th>
-                                        <th>Amount</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for transaction in time_report %}
-                                    <tr>
-                                        <td>{{ transaction.tranDate.strftime('%d-%m-%Y') }}</td>
-                                        <td>{{ transaction.tranTime }}</td>
-                                        <td>{{ transaction.category.catName }}</td>
-                                        <td>{{ transaction.tranDescription }}</td>
-                                        <td class="text-end">{{ "%.2f"|format(transaction.tranAmount) }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="4" class="text-end"><strong>Total:</strong></td>
-                                        <td class="text-end"><strong>{{ "%.2f"|format(time_total) }}</strong></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -426,12 +326,8 @@
     const categoryData = JSON.parse('{{ category_data|tojson|safe }}');
     const monthlyLabels = JSON.parse('{{ monthly_labels|tojson|safe }}');
     const monthlyData = JSON.parse('{{ monthly_data|tojson|safe }}');
-    const categoryTrendLabels = JSON.parse('{{ category_trend_labels|tojson|safe }}');
-    const categoryTrendData = JSON.parse('{{ category_trend_data|tojson|safe }}');
     const dateRangeLabels = JSON.parse('{{ date_range_labels|tojson|safe }}');
     const dateRangeData = JSON.parse('{{ date_range_data|tojson|safe }}');
-    const timeRangeLabels = JSON.parse('{{ time_range_labels|tojson|safe }}');
-    const timeRangeData = JSON.parse('{{ time_range_data|tojson|safe }}');
 
     // Category Chart
     const categoryCtx = document.getElementById('categoryChart').getContext('2d');
@@ -484,77 +380,30 @@
         }
     });
 
-    // Category Trend Chart
-    {% if category_report %}
-    const categoryTrendCtx = document.getElementById('categoryTrendChart').getContext('2d');
-    new Chart(categoryTrendCtx, {
-        type: 'line',
-        data: {
-            labels: categoryTrendLabels,
-            datasets: [{
-                label: 'Category Expenses',
-                data: categoryTrendData,
-                borderColor: '#FF6384',
-                tension: 0.1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-    {% endif %}
-
     // Date Range Chart
-    {% if date_report %}
-    const dateRangeCtx = document.getElementById('dateRangeChart').getContext('2d');
-    new Chart(dateRangeCtx, {
-        type: 'bar',
-        data: {
-            labels: dateRangeLabels,
-            datasets: [{
-                label: 'Daily Expenses',
-                data: dateRangeData,
-                backgroundColor: '#36A2EB'
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
+    if (dateRangeLabels && dateRangeLabels.length > 0) {
+        const dateRangeCtx = document.getElementById('dateRangeChart');
+        if (dateRangeCtx) {
+            new Chart(dateRangeCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: dateRangeLabels,
+                    datasets: [{
+                        label: 'Daily Expenses',
+                        data: dateRangeData,
+                        backgroundColor: '#36A2EB'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
                 }
-            }
+            });
         }
-    });
-    {% endif %}
-
-    // Time Range Chart
-    {% if time_report %}
-    const timeRangeCtx = document.getElementById('timeRangeChart').getContext('2d');
-    new Chart(timeRangeCtx, {
-        type: 'bar',
-        data: {
-            labels: timeRangeLabels,
-            datasets: [{
-                label: 'Hourly Expenses',
-                data: timeRangeData,
-                backgroundColor: '#FF6384'
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
-        }
-    });
-    {% endif %}
+    }
 </script>
 {% endblock %} 
