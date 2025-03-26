@@ -1,120 +1,98 @@
-# Expense Tracker Web Application
+# Budget Tracker Web Application
 
-A Flask-based web application for tracking personal expenses. This application allows users to manage their expenses, create categories, set budgets, and generate reports.
+A Flask-based web application for tracking personal finances, including both expenses and revenue. This application helps users manage their budget, track spending, and monitor income streams.
 
 ## Features
 
 - User authentication (login/register)
-- Add, view, and manage expense transactions
-- Create and manage expense categories
-- Set and track budget limits
-- Generate various expense reports
-- Search transactions by category, date, or time
-- Responsive web interface
+- Expense tracking with categories
+- Revenue tracking with categories
+- Financial dashboard with charts
+- Detailed reports and analytics
+- Category management
+- Password reset functionality
+- Responsive design
+
+## Tech Stack
+
+- **Backend**: Python/Flask
+- **Frontend**: HTML, CSS (Bootstrap 5), JavaScript
+- **Database**: MySQL
+- **ORM**: SQLAlchemy
+- **Authentication**: Flask-Login
+- **Forms**: Flask-WTF
+- **Charts**: Chart.js
+- **Email**: Flask-Mail
 
 ## Prerequisites
 
 - Python 3.8 or higher
-- SQL Server (Azure SQL Database)
-- ODBC Driver 18 for SQL Server
+- MySQL Server
+- pip (Python package manager)
 
 ## Installation
 
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd expense-tracker-web
+cd BudgetTrackerWeb
 ```
 
-2. Create a virtual environment and activate it:
+2. Create and activate a virtual environment:
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
-3. Install the required packages:
+3. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file in the root directory and update the following variables:
+4. Set up environment variables:
+Create a `.env` file in the project root with the following variables:
 ```
-SECRET_KEY=your-secret-key-here
-DATABASE_URL=mssql+pyodbc://username:password@server:port/database?driver=ODBC+Driver+18+for+SQL+Server
-FLASK_ENV=development
 FLASK_APP=app.py
+FLASK_ENV=development
+SECRET_KEY=your-secret-key
+DATABASE_URL=mysql+pymysql://username:password@localhost:3306/database_name
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
 ```
 
-## Database Setup
-
-1. Create a new database in SQL Server
-2. Run the following SQL scripts to create the required tables:
-```sql
-CREATE TABLE users (
-    userID VARCHAR(20) PRIMARY KEY,
-    userPwd VARCHAR(20) NOT NULL,
-    fName VARCHAR(15) NOT NULL,
-    lName VARCHAR(15) NOT NULL,
-    userBudget FLOAT NOT NULL
-);
-
-CREATE TABLE categories (
-    catID VARCHAR(20) PRIMARY KEY,
-    catName VARCHAR(30) NOT NULL
-);
-
-CREATE TABLE transactions (
-    tranID VARCHAR(20) PRIMARY KEY,
-    tranDate DATE NOT NULL,
-    tranTime VARCHAR(5) NOT NULL,
-    catID VARCHAR(20) NOT NULL,
-    tranDescription VARCHAR(50) NOT NULL,
-    tranAmount FLOAT NOT NULL,
-    FOREIGN KEY (catID) REFERENCES categories(catID)
-);
-
-CREATE TABLE userTransactions (
-    userID VARCHAR(20),
-    tranID VARCHAR(20),
-    PRIMARY KEY (userID, tranID),
-    FOREIGN KEY (userID) REFERENCES users(userID),
-    FOREIGN KEY (tranID) REFERENCES transactions(tranID)
-);
+5. Initialize the database:
+```bash
+flask db init
+flask db migrate
+flask db upgrade
 ```
 
 ## Running the Application
 
-1. Make sure your virtual environment is activated
-2. Run the Flask application:
+1. Start the Flask development server:
 ```bash
 flask run
 ```
 
-3. Open your web browser and navigate to `http://localhost:5000`
-
-## Project Structure
-
+2. Open your web browser and navigate to:
 ```
-expense-tracker-web/
-├── app.py                 # Main application file
-├── requirements.txt       # Python dependencies
-├── .env                  # Environment variables
-├── static/              # Static files
-│   ├── css/
-│   │   └── style.css    # Custom CSS styles
-│   └── js/
-│       └── main.js      # JavaScript functions
-└── templates/           # HTML templates
-    ├── base.html        # Base template
-    ├── login.html       # Login page
-    ├── register.html    # Registration page
-    └── dashboard.html   # Main dashboard
+http://localhost:5000
 ```
+
+## Database Schema
+
+The application uses the following main tables:
+
+- `users`: User account information
+- `transactions`: Expense transactions
+- `revenues`: Revenue entries
+- `categories`: Expense categories
+- `user_transactions`: Many-to-many relationship between users and transactions
 
 ## Contributing
 
 1. Fork the repository
-2. Create a new branch for your feature
+2. Create a feature branch
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
