@@ -4,6 +4,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const toastElement = document.getElementById('notificationToast');
     const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
 
+    /**
+     * Function Name: showNotification
+     * Description: Displays a notification message to the user.
+     * @param {string} message - The message to display in the notification.
+     * @param {string} type - The type of notification to display (success, error, warning).
+     * @returns {void}
+     * @throws {Error} [Description of the conditions under which an error is thrown]
+     * @example showNotification('Transaction deleted successfully');
+     */
     function showNotification(message, type = 'success') {
         const toastBody = document.getElementById('notificationMessage');
         toastBody.textContent = message;
@@ -125,6 +134,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Function Name: deleteTransaction
+     * Description: Deletes a transaction and updates the UI accordingly.
+     * @param {HTMLElement} button - The delete button element that triggered the deletion.
+     * @returns {void}
+     * @throws {Error} Throws an error if the API call fails.
+     * @example deleteTransaction(buttonElement);
+     */
     function deleteTransaction(button) {
         const transactionId = button.dataset.id;
         fetch(`/transactions/${transactionId}/delete`, {
@@ -240,6 +257,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Function Name: deleteCategory
+     * Description: Deletes a category and updates the UI accordingly.
+     * @param {HTMLElement} button - The delete button element that triggered the deletion.
+     * @returns {void}
+     * @throws {Error} Throws an error if the API call fails.
+     * @example deleteCategory(buttonElement);
+     */
     function deleteCategory(button) {
         const categoryId = button.dataset.id;
         fetch(`/categories/${categoryId}/delete`, {
@@ -302,7 +327,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Add category form validation
+    /**
+     * Function Name: validateCategoryForm
+     * Description: Validates the category form inputs before submission.
+     * @returns {boolean} True if the form is valid, false otherwise.
+     * @example if (validateCategoryForm()) { submitForm(); }
+     */
     function validateCategoryForm() {
         const categoryName = document.getElementById('categoryName').value;
         const categoryId = document.getElementById('categoryId').value;
@@ -321,7 +351,13 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Format currency
+/**
+ * Function Name: formatCurrency
+ * Description: Formats a number as a currency string.
+ * @param {number} amount - The amount to format.
+ * @returns {string} The formatted currency string.
+ * @example formatCurrency(123.45); // Returns "$123.45"
+ */
 function formatCurrency(amount) {
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
@@ -329,7 +365,13 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// Format date
+/**
+ * Function Name: formatDate
+ * Description: Formats a date object or string into a standardized string format.
+ * @param {Date|string} date - The date to format.
+ * @returns {string} The formatted date string.
+ * @example formatDate(new Date()); // Returns date in format "MM/DD/YYYY"
+ */
 function formatDate(date) {
     return new Date(date).toLocaleDateString('en-US', {
         year: 'numeric',
@@ -338,14 +380,25 @@ function formatDate(date) {
     });
 }
 
-// Show/hide password
+/**
+ * Function Name: togglePassword
+ * Description: Toggles the visibility of a password input field.
+ * @param {string} inputId - The ID of the password input element.
+ * @returns {void}
+ * @example togglePassword('passwordField');
+ */
 function togglePassword(inputId) {
     const input = document.getElementById(inputId);
     const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
     input.setAttribute('type', type);
 }
 
-// Add transaction form validation
+/**
+ * Function Name: validateTransactionForm
+ * Description: Validates the transaction form inputs before submission.
+ * @returns {boolean} True if the form is valid, false otherwise.
+ * @example if (validateTransactionForm()) { submitForm(); }
+ */
 function validateTransactionForm() {
     const amount = document.getElementById('amount').value;
     const date = document.getElementById('date').value;
@@ -366,7 +419,12 @@ function validateTransactionForm() {
     return true;
 }
 
-// Add budget form validation
+/**
+ * Function Name: validateBudgetForm
+ * Description: Validates the budget form inputs before submission.
+ * @returns {boolean} True if the form is valid, false otherwise.
+ * @example if (validateBudgetForm()) { submitForm(); }
+ */
 function validateBudgetForm() {
     const budget = document.getElementById('budget').value;
 
@@ -383,7 +441,14 @@ function validateBudgetForm() {
     return true;
 }
 
-// Export report function
+/**
+ * Function Name: exportReport
+ * Description: Initiates the export of a report in the specified format.
+ * @param {string} reportType - The type of report to export (category, date, time).
+ * @param {string} format - The format to export the report in (csv, pdf).
+ * @returns {void}
+ * @example exportReport('category', 'csv');
+ */
 function exportReport(reportType, format) {
     window.location.href = `/reports/export/${reportType}/${format}`;
 } 

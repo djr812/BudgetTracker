@@ -1,3 +1,27 @@
+"""
+================================================================================
+File Name: app.py
+Description: Main application file for Budget Tracker - a comprehensive personal 
+             finance management system that allows users to track their expenses, 
+             income, and provide financial reporting and analytics. The system 
+             includes user authentication, transaction management, categorization, 
+             and data visualization features.
+Author: David Rogers
+Date Created: 26/03/2025
+Python Version: 3.13.2
+Dependencies:   Flask, SQLAlchemy, Flask Login, Flask Migrate, Flask Mail, DateTime,
+                OS, UUID, CSV, IO, Werkzueg, Flask WTF, ReportLab, PANDAS
+Usage: 
+        - Development: Run with `flask run` or `python app.py`
+        - Production: Deploy with a WSGI server like Gunicorn
+        - Environment variables required:
+        * SECRET_KEY: Secret key for session security
+        * DATABASE_URL: Connection string for the database
+        * EMAIL_USER: Email username for password reset functionality
+        * EMAIL_PASSWORD: Email password for password reset functionality
+================================================================================
+"""
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -41,11 +65,28 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
+
 def get_reset_token(user_id):
+    """
+    Function Name:  get_reset_token
+    Description:    Generates a secure token for password reset functionality
+    Args:           user_id (str): The user's unique identifier
+    Returns:        str: A secure token containing encoded user information
+    Raises:         None
+    """
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     return serializer.dumps(user_id, salt='password-reset-salt')
 
+
 def verify_reset_token(token, expiration=3600):
+    """
+    Function Name:  verify_reset_token
+    Description:    Validates a password reset token and extracts the user ID
+    Args:           token (str): The password reset token to verify
+                    expiration (int): Token validity period in seconds (default: 3600)
+    Returns:        str: The user ID if token is valid, None otherwise
+    Raises:         None
+    """
     serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
     try:
         user_id = serializer.loads(token, salt='password-reset-salt', max_age=expiration)
@@ -53,8 +94,21 @@ def verify_reset_token(token, expiration=3600):
     except:
         return None
 
+
 # Models
 class User(UserMixin, db.Model):
+    """
+    User - A model representing a user in the application.
+    
+    Attributes:
+        userID (int): Unique identifier for the user.
+        userPwd (str): Hashed and Salted user app password
+        fname (str): First name of the user.
+        lname (str): Last name of the user
+        userBudget (float): Current user budget amount.
+        email (str): Email address of the user.
+        monthlyIncome (float): Current user monthly income. 
+    """
     __tablename__ = 'users'
     userID = db.Column(db.String(20), primary_key=True)
     userPwd = db.Column(db.String(256), nullable=False)  # Increased length for hash
@@ -73,13 +127,35 @@ class User(UserMixin, db.Model):
     def check_password(self, password):
         return check_password_hash(self.userPwd, password)
 
+
 class Category(db.Model):
+    """
+    Category - A model representing an expense category in the application.
+    
+    Attributes:
+        catID (str): Unique identifier for the category.
+        catName (str): Name of the category.
+        transactions (relationship): Relationship to associated transactions.
+    """
     __tablename__ = 'categories'
     catID = db.Column(db.String(20), primary_key=True)
     catName = db.Column(db.String(30), nullable=False)
     transactions = db.relationship('Transaction', backref='category', lazy=True)
 
+
 class Transaction(db.Model):
+    """
+    Transaction - A model representing a financial transaction in the application.
+    
+    Attributes:
+        tranID (str): Unique identifier for the transaction.
+        tranDate (date): Date when the transaction occurred.
+        tranTime (str): Time when the transaction occurred.
+        catID (str): Foreign key to the category this transaction belongs to.
+        tranDescription (str): Description of the transaction.
+        tranAmount (float): Amount of the transaction.
+        isExpense (bool): Flag indicating whether this is an expense (True) or income (False).
+    """
     __tablename__ = 'transactions'
     tranID = db.Column(db.String(20), primary_key=True)
     tranDate = db.Column(db.Date, nullable=False)
@@ -89,13 +165,33 @@ class Transaction(db.Model):
     tranAmount = db.Column(db.Float, nullable=False)
     isExpense = db.Column(db.Boolean, nullable=False, default=True)  # Add flag to distinguish between expense and revenue
 
+
 class UserTransaction(db.Model):
+    """
+    UserTransaction - A model representing the association between users and transactions.
+    
+    Attributes:
+        userID (str): Foreign key to the user who owns this transaction.
+        tranID (str): Foreign key to the transaction.
+    """
     __tablename__ = 'userTransactions'
     userID = db.Column(db.String(20), db.ForeignKey('users.userID'), primary_key=True)
     tranID = db.Column(db.String(20), db.ForeignKey('transactions.tranID'), primary_key=True)
 
-# Add Revenue model
+
 class Revenue(db.Model):
+    """
+    Revenue - A model representing a revenue entry in the application.
+    
+    Attributes:
+        revID (str): Unique identifier for the revenue entry.
+        userID (str): Foreign key to the user who owns this revenue.
+        revAmount (float): Amount of the revenue.
+        revDescription (str): Description of the revenue source.
+        revDate (date): Date when the revenue was received.
+        revType (enum): Type of revenue (Salary, Freelance, Investments, etc.).
+        user (relationship): Relationship to the user who owns this revenue.
+    """
     __tablename__ = 'revenues'
     revID = db.Column(db.String(20), primary_key=True)
     userID = db.Column(db.String(20), db.ForeignKey('users.userID'), nullable=False)
@@ -105,19 +201,43 @@ class Revenue(db.Model):
     revType = db.Column(db.Enum('Salary', 'Freelance', 'Investments', 'Rent', 'Other', 'Bank Interest'), nullable=False)
     user = db.relationship('User', backref=db.backref('revenues', lazy=True))
 
+
 @login_manager.user_loader
 def load_user(user_id):
+    """
+    Function Name:  load_user
+    Description:    Loads a user from the database based on user ID for Flask-Login
+    Args:           user_id (str): The current user's unique identifier
+    Returns:        User: The User object if found, None otherwise
+    Raises:         None
+    """
     return db.session.get(User, user_id)
+
 
 # Routes
 @app.route('/')
 def index():
+    """
+    Function Name:  index
+    Description:    Renders the home page or redirects authenticated users to dashboard
+    Args:           None
+    Returns:        flask.Response: Rendered template or redirect response
+    Raises:         None
+    """
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     return render_template('index.html')
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    """
+    Function Name:  login
+    Description:    Handles user authentication and login
+    Args:           None (data received via request form)
+    Returns:        flask.Response: Rendered login template or redirect to dashboard
+    Raises:         None
+    """
     if request.method == 'POST':
         user_id = request.form.get('user_id')
         password = request.form.get('password')
@@ -129,8 +249,16 @@ def login():
         flash('Invalid user ID or password')
     return render_template('login.html')
 
+
 @app.route('/reset_password', methods=['GET', 'POST'])
 def reset_request():
+    """
+    Function Name:  reset_request
+    Description:    Handles password reset requests and sends reset emails
+    Args:           None (data received via request form)
+    Returns:        flask.Response: Rendered template or redirect response
+    Raises:         None
+    """
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
@@ -168,8 +296,16 @@ If you did not make this request, please ignore this email.
     
     return render_template('reset_request.html')
 
+
 @app.route('/reset_password/<token>', methods=['GET', 'POST'])
 def reset_token(token):
+    """
+    Function Name:  reset_token
+    Description:    Handles password reset using a valid token
+    Args:           token (str): The password reset token
+    Returns:        flask.Response: Rendered template or redirect response
+    Raises:         None
+    """
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
     
@@ -199,8 +335,16 @@ def reset_token(token):
     
     return render_template('reset_token.html')
 
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    """
+    Function Name:  register
+    Description:    Handles new user registration
+    Args:           None (user data received via request form)
+    Returns:        flask.Response: Rendered registration form or redirect after registration
+    Raises:         None
+    """
     if request.method == 'POST':
         # Get form data
         user_id = request.form.get('user_id')
@@ -242,9 +386,17 @@ def register():
     
     return render_template('register.html')
 
+
 @app.route('/dashboard')
 @login_required
 def dashboard():
+    """
+    Function Name:  dashboard
+    Description:    Renders the user dashboard with financial summary and visualizations
+    Args:           None
+    Returns:        flask.Response: Rendered dashboard template with financial data
+    Raises:         None
+    """
     # Get current month's start and end dates
     today = datetime.now()
     month_start = today.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -315,16 +467,32 @@ def dashboard():
                          revenue_categories=revenue_categories,
                          revenue_amounts=revenue_amounts)
 
+
 @app.route('/logout')
 @login_required
 def logout():
+    """
+    Function Name:  logout
+    Description:    Logs out the current user and redirects to the home page
+    Args:           None
+    Returns:        flask.Response: Redirect to home page
+    Raises:         None
+    """
     logout_user()
     return redirect(url_for('index'))
+
 
 # Transaction Management Routes
 @app.route('/transactions/add', methods=['GET', 'POST'])
 @login_required
 def add_transaction():
+    """
+    Function Name:  add_transaction
+    Description:    Handles creation of a new transaction
+    Args:           None (transaction data received via request form)
+    Returns:        flask.Response: Rendered form template or redirect after creation
+    Raises:         None
+    """
     if request.method == 'POST':
         # Get form data
         date = datetime.strptime(request.form.get('date'), '%Y-%m-%d').date()
@@ -371,9 +539,17 @@ def add_transaction():
                          today=today,
                          now=now)
 
+
 @app.route('/transactions')
 @login_required
 def view_transactions():
+    """
+    Function Name:  view_transactions
+    Description:    Displays a paginated list of user transactions with filtering options
+    Args:           None (filter parameters received via request args)
+    Returns:        flask.Response: Rendered template with transaction data
+    Raises:         None
+    """
     # Get filter parameters
     page = request.args.get('page', 1, type=int)
     per_page = 10
@@ -424,9 +600,17 @@ def view_transactions():
                          total_pages=pagination.pages,
                          search_term=search_term)
 
+
 @app.route('/transactions/<tran_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_transaction(tran_id):
+    """
+    Function Name:  edit_transaction
+    Description:    Handles editing of an existing transaction
+    Args:           tran_id (str): Unique identifier of the transaction to edit
+    Returns:        flask.Response: Rendered edit form or redirect after update
+    Raises:         werkzeug.exceptions.NotFound: If transaction not found or not owned by user
+    """
     # Get transaction and verify ownership
     transaction = Transaction.query.join(UserTransaction).filter(
         Transaction.tranID == tran_id,
@@ -453,9 +637,17 @@ def edit_transaction(tran_id):
     categories = Category.query.all()
     return render_template('edit_transaction.html', transaction=transaction, categories=categories)
 
+
 @app.route('/transactions/<tran_id>/delete', methods=['POST'])
 @login_required
 def delete_transaction(tran_id):
+    """
+    Function Name:  delete_transaction
+    Description:    Handles deletion of an existing transaction
+    Args:           tran_id (str): Unique identifier of the transaction to delete
+    Returns:        flask.Response: JSON response indicating success or failure
+    Raises:         werkzeug.exceptions.NotFound: If transaction not found or not owned by user
+    """
     # Get transaction and verify ownership
     transaction = Transaction.query.join(UserTransaction).filter(
         Transaction.tranID == tran_id,
@@ -478,15 +670,31 @@ def delete_transaction(tran_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Error deleting transaction'}), 500
 
+
 # Category Management Routes
 @app.route('/categories')
 @login_required
 def view_categories():
+    """
+    Function Name:  view_categories
+    Description:    Displays a list of all expense categories
+    Args:           None
+    Returns:        flask.Response: Rendered template with category data
+    Raises:         None
+    """
     categories = Category.query.all()
     return render_template('categories.html', categories=categories)
 
+
 @app.route('/categories/add', methods=['POST'])
 def add_category():
+    """
+    Function Name:  add_category
+    Description:    Handles creation of a new expense category
+    Args:           None (category data received via request form)
+    Returns:        flask.Response: JSON response indicating success or failure
+    Raises:         None
+    """
     try:
         category_id = request.form.get('categoryId')
         category_name = request.form.get('categoryName')
@@ -531,9 +739,17 @@ def add_category():
             'message': 'An error occurred while adding the category. Please try again.'
         }), 500
 
+
 @app.route('/categories/<cat_id>/edit', methods=['POST'])
 @login_required
 def edit_category(cat_id):
+    """
+    Function Name:  edit_category
+    Description:    Handles updating of an existing expense category
+    Args:           cat_id (str): Unique identifier of the category to edit
+    Returns:        flask.Response: JSON response indicating success or failure
+    Raises:         None
+    """
     category = db.session.get(Category, cat_id)
     if not category:
         return jsonify({'success': False, 'message': 'Category not found'}), 404
@@ -548,9 +764,17 @@ def edit_category(cat_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Error updating category'}), 500
 
+
 @app.route('/categories/<cat_id>/delete', methods=['POST'])
 @login_required
 def delete_category(cat_id):
+    """
+    Function Name:  delete_category
+    Description:    Handles deletion of an existing expense category
+    Args:           cat_id (str): Unique identifier of the category to delete
+    Returns:        flask.Response: JSON response indicating success or failure
+    Raises:         None
+    """
     category = db.session.get(Category, cat_id)
     if not category:
         return jsonify({'success': False, 'message': 'Category not found'}), 404
@@ -570,10 +794,18 @@ def delete_category(cat_id):
         db.session.rollback()
         return jsonify({'success': False, 'message': 'Error deleting category'}), 500
 
+
 # Report Routes
 @app.route('/reports')
 @login_required
 def reports():
+    """
+    Function Name:  reports
+    Description:    Renders the main reports page with financial data visualizations
+    Args:           None (date range parameters received via request args)
+    Returns:        flask.Response: Rendered template with report data
+    Raises:         None
+    """
     # Get date range from query parameters or use default (last 30 days)
     end_date = datetime.now()
     start_date = request.args.get('start_date', (end_date - timedelta(days=30)).strftime('%Y-%m-%d'))
@@ -696,9 +928,17 @@ def reports():
                          category_labels=category_labels,
                          category_data=category_data)
 
+
 @app.route('/reports/category')
 @login_required
 def category_report():
+    """
+    Function Name:  category_report
+    Description:    Generates and displays a report for a specific expense category
+    Args:           None (category received via request args)
+    Returns:        flask.Response: Rendered template with category report data
+    Raises:         None
+    """
     category_id = request.args.get('category')
     
     if not category_id:
@@ -738,9 +978,17 @@ def category_report():
                          category_trend_data=list(category_trend_data.values()),
                          categories=categories)
 
+
 @app.route('/reports/date')
 @login_required
 def date_report():
+    """
+    Function Name:  date_report
+    Description:    Generates and displays a report for a specific date range
+    Args:           None (date range received via request args)
+    Returns:        flask.Response: Rendered template with date range report data
+    Raises:         None
+    """
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
     
@@ -786,9 +1034,17 @@ def date_report():
                          date_range_data=list(date_range_data.values()),
                          categories=categories)
 
+
 @app.route('/reports/time')
 @login_required
 def time_report():
+    """
+    Function Name:  time_report
+    Description:    Generates and displays a report for transactions within a specific time range
+    Args:           None (time range received via request args)
+    Returns:        flask.Response: Rendered template with time range report data
+    Raises:         None
+    """
     time_from = request.args.get('time_from')
     time_to = request.args.get('time_to')
     
@@ -829,9 +1085,18 @@ def time_report():
                          time_range_data=list(time_range_data.values()),
                          categories=categories)
 
+
 @app.route('/reports/export/<report_type>/<format>')
 @login_required
 def export_report(report_type, format):
+    """
+    Function Name:  export_report
+    Description:    Exports a transaction report in the specified format
+    Args:           report_type (str): Type of report to export ('current' or other types)
+                    format (str): Export format ('csv', 'excel', or 'pdf')
+    Returns:        flask.Response: File download response with appropriate content type
+    Raises:         None
+    """
     if report_type == 'current':
         transactions = Transaction.query.join(UserTransaction).filter(
             UserTransaction.userID == current_user.userID
@@ -956,6 +1221,7 @@ def export_report(report_type, format):
         flash('Invalid export format.', 'error')
         return redirect(url_for('reports'))
 
+
 # Revenue Management Routes
 class RevenueForm(FlaskForm):
     amount = FloatField('Amount', validators=[DataRequired(), NumberRange(min=0.01)])
@@ -971,9 +1237,17 @@ class RevenueForm(FlaskForm):
     ], validators=[DataRequired()])
     submit = SubmitField('Save')
 
+
 @app.route('/revenues/add', methods=['GET', 'POST'])
 @login_required
 def add_revenue():
+    """
+    Function Name:  add_revenue
+    Description:    Handles creation of a new revenue entry
+    Args:           None (revenue data received via form)
+    Returns:        flask.Response: Rendered form template or redirect after creation
+    Raises:         None
+    """
     form = RevenueForm()
     if form.validate_on_submit():
         revenue = Revenue(
@@ -991,9 +1265,17 @@ def add_revenue():
         return redirect(url_for('view_revenues'))
     return render_template('add_revenue.html', form=form)
 
+
 @app.route('/revenues')
 @login_required
 def view_revenues():
+    """
+    Function Name:  view_revenues
+    Description:    Displays a paginated list of user's revenue entries
+    Args:           None (pagination parameters received via request args)
+    Returns:        flask.Response: Rendered template with revenue data
+    Raises:         None
+    """
     page = request.args.get('page', 1, type=int)
     per_page = 10
     
@@ -1011,9 +1293,18 @@ def view_revenues():
                          pages=revenues.pages,
                          current_page=page)
 
+
 @app.route('/revenues/<string:revenue_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_revenue(revenue_id):
+    """
+    Function Name:  edit_revenue
+    Description:    Handles updating of an existing revenue entry
+    Args:           revenue_id (str): Unique identifier of the revenue entry to edit
+    Returns:        flask.Response: Rendered edit form or redirect after update
+    Raises:         werkzeug.exceptions.NotFound: If revenue not found
+                    werkzeug.exceptions.Forbidden: If revenue not owned by user
+    """
     revenue = db.session.get(Revenue, revenue_id)
     if not revenue:
         abort(404)
@@ -1034,9 +1325,18 @@ def edit_revenue(revenue_id):
     
     return render_template('edit_revenue.html', form=form, revenue=revenue)
 
+
 @app.route('/revenues/<string:revenue_id>/delete', methods=['POST'])
 @login_required
 def delete_revenue(revenue_id):
+    """
+    Function Name:  delete_revenue
+    Description:    Handles deletion of an existing revenue entry
+    Args:           revenue_id (str): Unique identifier of the revenue entry to delete
+    Returns:        flask.Response: Redirect response after deletion
+    Raises:         werkzeug.exceptions.NotFound: If revenue not found
+                    werkzeug.exceptions.Forbidden: If revenue not owned by user
+    """
     revenue = db.session.get(Revenue, revenue_id)
     if not revenue:
         abort(404)
