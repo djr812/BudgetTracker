@@ -17,7 +17,7 @@
                         {{ form.amount.label(class="form-label") }}
                         <div class="input-group">
                             <span class="input-group-text">$</span>
-                            {{ form.amount(class="form-control", placeholder="Enter amount", value=revenue.revAmount) }}
+                            {{ form.amount(class="form-control", placeholder="Enter amount", value="%.2f"|format(revenue.revAmount)) }}
                         </div>
                         {% if form.amount.errors %}
                             {% for error in form.amount.errors %}

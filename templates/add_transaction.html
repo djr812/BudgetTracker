@@ -3,55 +3,241 @@
 {% block title %}Add Transaction - Budget Tracker{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
+<div class="row">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h3 class="text-center">Add New Transaction</h3>
+                <h4 class="mb-0"><i class="fas fa-plus"></i> Add New Transaction</h4>
             </div>
             <div class="card-body">
-                <form method="POST" onsubmit="return validateTransactionForm()">
+                <form method="POST" action="{{ url_for('add_transaction') }}">
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="date" class="form-label">Date</label>
-                            <input type="date" class="form-control" id="date" name="date" required>
+                            <input type="date" class="form-control" id="date" name="date" value="{{ today }}" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="time" class="form-label">Time</label>
-                            <input type="time" class="form-control" id="time" name="time" required>
+                            <input type="time" class="form-control" id="time" name="time" value="{{ now }}" required>
                         </div>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="category" class="form-label">Category</label>
-                        <select class="form-select" id="category" name="category" required>
-                            <option value="">Select a category</option>
-                            {% for category in categories %}
-                            <option value="{{ category.catID }}">{{ category.catName }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="category" class="form-label">Category</label>
+                            <div class="input-group">
+                                <select class="form-select" id="category" name="category" required>
+                                    <option value="">Select a category</option>
+                                    {% for category in categories %}
+                                    <option value="{{ category.catID }}">{{ category.catName }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addCategoryModal">
+                                    <i class="fas fa-plus"></i> New
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="amount" class="form-label">Amount</label>
+                            <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                        </div>
                     </div>
-                    
                     <div class="mb-3">
                         <label for="description" class="form-label">Description</label>
-                        <input type="text" class="form-control" id="description" name="description" maxlength="50" required>
+                        <input type="text" class="form-control" id="description" name="description" required>
                     </div>
-                    
-                    <div class="mb-3">
-                        <label for="amount" class="form-label">Amount</label>
-                        <div class="input-group">
-                            <span class="input-group-text">$</span>
-                            <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="0" required>
-                        </div>
-                    </div>
-                    
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary">Add Transaction</button>
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
-                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i> Save Transaction
+                    </button>
                 </form>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Add Category Modal -->
+<div class="modal fade" id="addCategoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="categoryForm">
+                    <div class="mb-3">
+                        <label for="categoryId" class="form-label">Category ID (4 digits)</label>
+                        <input type="text" class="form-control" id="categoryId" name="categoryId" 
+                               required pattern="[0-9]{4}" title="Please enter a 4-digit number">
+                    </div>
+                    <div class="mb-3">
+                        <label for="categoryName" class="form-label">Category Name</label>
+                        <input type="text" class="form-control" id="categoryName" name="categoryName" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="addCategoryBtn" class="btn btn-primary">Add Category</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Load Bootstrap JS first -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Load our main.js -->
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    
+    // Get all required elements
+    const categoryForm = document.getElementById('categoryForm');
+    const categorySelect = document.getElementById('category');
+    const modalElement = document.getElementById('addCategoryModal');
+    const addCategoryBtn = document.getElementById('addCategoryBtn');
+    const mainForm = document.querySelector('form[method="POST"]');
+    
+    // Initialize modal only if the element exists
+    let addCategoryModal = null;
+    if (modalElement) {
+        addCategoryModal = new bootstrap.Modal(modalElement);
+    }
+
+    // Function to reset button state
+    function resetButtonState() {
+        if (addCategoryBtn) {
+            addCategoryBtn.disabled = false;
+            addCategoryBtn.innerHTML = 'Add Category';
+        }
+    }
+
+    // Function to reset form state
+    function resetFormState() {
+        // Remove modal backdrop
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.remove();
+        }
+        
+        // Remove modal-open class from body
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+        
+        // Enable all form inputs
+        if (mainForm) {
+            const inputs = mainForm.querySelectorAll('input, select, button');
+            inputs.forEach(input => {
+                input.disabled = false;
+            });
+        }
+    }
+
+    // Check if we have all required elements
+    if (categoryForm && categorySelect && modalElement && addCategoryBtn && addCategoryModal) {
+        console.log('All required elements found');
+        
+        addCategoryBtn.addEventListener('click', function(e) {
+            console.log('Add category button clicked');
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Disable the button to prevent double submission
+            addCategoryBtn.disabled = true;
+            addCategoryBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Adding...';
+            
+            const formData = new FormData(categoryForm);
+            console.log('Form data:', {
+                categoryId: formData.get('categoryId'),
+                categoryName: formData.get('categoryName')
+            });
+            
+            fetch('{{ url_for("add_category") }}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => {
+                console.log('Response received:', response.status);
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        console.log('Error response:', data);
+                        throw new Error(data.message || 'Error adding category');
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Success response:', data);
+                if (data.success) {
+                    // Add the new category to the select dropdown
+                    const option = new Option(data.categoryName, data.categoryId);
+                    categorySelect.add(option);
+                    categorySelect.value = data.categoryId; // Select the new category
+                    
+                    // Close the modal
+                    addCategoryModal.hide();
+                    
+                    // Clear the form
+                    categoryForm.reset();
+                    
+                    // Reset form state
+                    resetFormState();
+                    
+                    // Show success notification
+                    if (typeof showNotification === 'function') {
+                        showNotification('Category added successfully!', 'success');
+                    } else {
+                        alert('Category added successfully!');
+                    }
+                } else {
+                    // Show error notification
+                    if (typeof showNotification === 'function') {
+                        showNotification(data.message || 'Error adding category', 'error');
+                    } else {
+                        alert(data.message || 'Error adding category');
+                    }
+                    // Keep the modal open and focus on the category ID input
+                    document.getElementById('categoryId').focus();
+                }
+            })
+            .catch(error => {
+                console.error('Error in fetch:', error);
+                if (typeof showNotification === 'function') {
+                    showNotification(error.message || 'Error adding category. Please try again.', 'error');
+                } else {
+                    alert(error.message || 'Error adding category. Please try again.');
+                }
+                // Keep the modal open and focus on the category ID input
+                document.getElementById('categoryId').focus();
+            })
+            .finally(() => {
+                console.log('Request completed');
+                resetButtonState();
+                resetFormState();
+            });
+        });
+
+        // Reset form state when modal is closed
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            resetButtonState();
+            resetFormState();
+        });
+    } else {
+        console.error('Missing required elements:', {
+            categoryForm: !!categoryForm,
+            categorySelect: !!categorySelect,
+            modalElement: !!modalElement,
+            addCategoryBtn: !!addCategoryBtn,
+            addCategoryModal: !!addCategoryModal,
+            mainForm: !!mainForm
+        });
+    }
+});
+</script>
 {% endblock %} 

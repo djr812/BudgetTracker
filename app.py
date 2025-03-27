@@ -22,35 +22,16 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Email configuration
-app.config['MAIL_SERVER'] = "mx3594.syd1.mymailhosting.com"
+app.config['MAIL_SERVER'] = 'mx3594.syd1.mymailhosting.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = False
-
-# Load email credentials from environment variables
-email_user = os.getenv('EMAIL_USER')
-email_password = os.getenv('EMAIL_PASSWORD')
-
-if not email_user or not email_password:
-    app.logger.error("Email credentials not found in environment variables")
-    raise ValueError("Email credentials must be set in environment variables")
-
-app.config['MAIL_USERNAME'] = email_user
-app.config['MAIL_PASSWORD'] = email_password
-app.config['MAIL_DEFAULT_SENDER'] = email_user
+app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
+app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
-app.config['MAIL_DEBUG'] = True  # Enable debug mode
-
-# Debug logging for email configuration (without exposing sensitive data)
-print("Email Configuration:")
-print(f"MAIL_USERNAME: {app.config['MAIL_USERNAME']}")
-print(f"MAIL_PASSWORD: {'*' * len(app.config['MAIL_PASSWORD']) if app.config['MAIL_PASSWORD'] else 'None'}")
-print(f"MAIL_DEFAULT_SENDER: {app.config['MAIL_DEFAULT_SENDER']}")
-print(f"MAIL_SERVER: {app.config['MAIL_SERVER']}")
-print(f"MAIL_PORT: {app.config['MAIL_PORT']}")
-print(f"MAIL_USE_TLS: {app.config['MAIL_USE_TLS']}")
-print(f"MAIL_USE_SSL: {app.config['MAIL_USE_SSL']}")
+app.config['MAIL_DEFAULT_SENDER'] = ('Budget Tracker', app.config['MAIL_USERNAME'])
+app.config['MAIL_DEBUG'] = False
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -117,17 +98,16 @@ class UserTransaction(db.Model):
 class Revenue(db.Model):
     __tablename__ = 'revenues'
     revID = db.Column(db.String(20), primary_key=True)
-    revDate = db.Column(db.Date, nullable=False)
-    revTime = db.Column(db.String(5), nullable=False)
-    revDescription = db.Column(db.String(50), nullable=False)
-    revAmount = db.Column(db.Float, nullable=False)
-    revType = db.Column(db.String(20), nullable=False)  # e.g., 'salary', 'freelance', 'investments', etc.
     userID = db.Column(db.String(20), db.ForeignKey('users.userID'), nullable=False)
+    revAmount = db.Column(db.Float, nullable=False)
+    revDescription = db.Column(db.String(50), nullable=False)
+    revDate = db.Column(db.Date, nullable=False)
+    revType = db.Column(db.Enum('Salary', 'Freelance', 'Investments', 'Rent', 'Other', 'Bank Interest'), nullable=False)
     user = db.relationship('User', backref=db.backref('revenues', lazy=True))
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(user_id)
+    return db.session.get(User, user_id)
 
 # Routes
 @app.route('/')
@@ -141,7 +121,7 @@ def login():
     if request.method == 'POST':
         user_id = request.form.get('user_id')
         password = request.form.get('password')
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         
         if user and user.check_password(password):
             login_user(user)
@@ -231,7 +211,7 @@ def register():
         budget = float(request.form.get('budget'))
 
         # Check if user already exists
-        if User.query.get(user_id):
+        if db.session.get(User, user_id):
             flash('User ID already exists')
             return redirect(url_for('register'))
         
@@ -381,7 +361,15 @@ def add_transaction():
     
     # Get all categories for the form
     categories = Category.query.all()
-    return render_template('add_transaction.html', categories=categories)
+    
+    # Get current date and time for default values
+    today = datetime.now().strftime('%Y-%m-%d')
+    now = datetime.now().strftime('%H:%M')
+    
+    return render_template('add_transaction.html', 
+                         categories=categories,
+                         today=today,
+                         now=now)
 
 @app.route('/transactions')
 @login_required
@@ -392,6 +380,13 @@ def view_transactions():
     category = request.args.get('category')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
+
+    # Set default dates to current year if not provided
+    current_year = datetime.now().year
+    if not date_from:
+        date_from = f"{current_year}-01-01"
+    if not date_to:
+        date_to = f"{current_year}-12-31"
 
     # Build query
     query = Transaction.query.join(UserTransaction).filter(
@@ -487,41 +482,58 @@ def view_categories():
     return render_template('categories.html', categories=categories)
 
 @app.route('/categories/add', methods=['POST'])
-@login_required
 def add_category():
-    category_id = request.form.get('categoryId')
-    category_name = request.form.get('categoryName')
-
-    # Validate category ID format
-    if not category_id.isdigit() or len(category_id) != 4 or int(category_id) < 1000 or int(category_id) > 9999:
-        flash('Category ID must be a 4-digit number between 1000 and 9999.', 'error')
-        return redirect(url_for('view_categories'))
-
-    # Check if category ID already exists
-    if Category.query.get(category_id):
-        flash('Category ID already exists.', 'error')
-        return redirect(url_for('view_categories'))
-
-    # Create new category
-    new_category = Category(
-        catID=category_id,
-        catName=category_name
-    )
-
     try:
+        category_id = request.form.get('categoryId')
+        category_name = request.form.get('categoryName')
+
+        # Validate category ID format
+        if not category_id or not category_id.isdigit() or len(category_id) != 4:
+            return jsonify({
+                'success': False,
+                'message': 'Category ID must be a 4-digit number'
+            }), 400
+
+        # Check if category ID already exists
+        existing_category = Category.query.filter_by(catID=category_id).first()
+        if existing_category:
+            return jsonify({
+                'success': False,
+                'message': f'Category ID {category_id} already exists. Please use a different ID.'
+            }), 400
+
+        # Create new category
+        new_category = Category(catID=category_id, catName=category_name)
         db.session.add(new_category)
         db.session.commit()
-        flash('Category added successfully!', 'success')
+
+        return jsonify({
+            'success': True,
+            'message': 'Category added successfully',
+            'categoryId': category_id,
+            'categoryName': category_name
+        })
+
     except Exception as e:
         db.session.rollback()
-        flash('Error adding category. Please try again.', 'error')
-
-    return redirect(url_for('view_categories'))
+        error_message = str(e)
+        if 'Duplicate entry' in error_message:
+            return jsonify({
+                'success': False,
+                'message': f'Category ID {category_id} already exists. Please use a different ID.'
+            }), 400
+        return jsonify({
+            'success': False,
+            'message': 'An error occurred while adding the category. Please try again.'
+        }), 500
 
 @app.route('/categories/<cat_id>/edit', methods=['POST'])
 @login_required
 def edit_category(cat_id):
-    category = Category.query.get_or_404(cat_id)
+    category = db.session.get(Category, cat_id)
+    if not category:
+        return jsonify({'success': False, 'message': 'Category not found'}), 404
+        
     category_name = request.form.get('categoryName')
 
     try:
@@ -535,7 +547,9 @@ def edit_category(cat_id):
 @app.route('/categories/<cat_id>/delete', methods=['POST'])
 @login_required
 def delete_category(cat_id):
-    category = Category.query.get_or_404(cat_id)
+    category = db.session.get(Category, cat_id)
+    if not category:
+        return jsonify({'success': False, 'message': 'Category not found'}), 404
 
     # Check if category is being used in transactions
     if Transaction.query.filter_by(catID=cat_id).first():
@@ -944,11 +958,12 @@ class RevenueForm(FlaskForm):
     description = StringField('Description', validators=[DataRequired(), Length(max=200)])
     date = DateField('Date', validators=[DataRequired()])
     category = SelectField('Category', choices=[
-        ('salary', 'Salary'),
-        ('freelance', 'Freelance'),
-        ('investments', 'Investments'),
-        ('rental', 'Rental Income'),
-        ('other', 'Other')
+        ('Salary', 'Salary'),
+        ('Freelance', 'Freelance'),
+        ('Investments', 'Investments'),
+        ('Rent', 'Rent'),
+        ('Other', 'Other'),
+        ('Bank Interest', 'Bank Interest')
     ], validators=[DataRequired()])
     submit = SubmitField('Save')
 
@@ -995,7 +1010,9 @@ def view_revenues():
 @app.route('/revenues/<string:revenue_id>/edit', methods=['GET', 'POST'])
 @login_required
 def edit_revenue(revenue_id):
-    revenue = Revenue.query.get_or_404(revenue_id)
+    revenue = db.session.get(Revenue, revenue_id)
+    if not revenue:
+        abort(404)
     
     if revenue.userID != current_user.userID:
         abort(403)
@@ -1016,7 +1033,9 @@ def edit_revenue(revenue_id):
 @app.route('/revenues/<string:revenue_id>/delete', methods=['POST'])
 @login_required
 def delete_revenue(revenue_id):
-    revenue = Revenue.query.get_or_404(revenue_id)
+    revenue = db.session.get(Revenue, revenue_id)
+    if not revenue:
+        abort(404)
     
     if revenue.userID != current_user.userID:
         abort(403)

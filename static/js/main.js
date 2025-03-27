@@ -1,6 +1,27 @@
 // Form validation
 document.addEventListener('DOMContentLoaded', function() {
-    // Add form validation
+    // Initialize toast
+    const toastElement = document.getElementById('notificationToast');
+    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+
+    function showNotification(message, type = 'success') {
+        const toastBody = document.getElementById('notificationMessage');
+        toastBody.textContent = message;
+        
+        // Update toast styling based on type
+        toastElement.className = 'toast';
+        if (type === 'success') {
+            toastElement.classList.add('bg-success', 'text-white');
+        } else if (type === 'error') {
+            toastElement.classList.add('bg-danger', 'text-white');
+        } else if (type === 'warning') {
+            toastElement.classList.add('bg-warning', 'text-dark');
+        }
+        
+        toast.show();
+    }
+
+    // Form validation
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
         form.addEventListener('submit', function(event) {
@@ -12,16 +33,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Add confirmation for delete actions
-    const deleteButtons = document.querySelectorAll('.delete-btn');
-    deleteButtons.forEach(button => {
-        button.addEventListener('click', function(event) {
-            if (!confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
-                event.preventDefault();
-            }
-        });
-    });
-
     // Add date validation
     const dateInputs = document.querySelectorAll('input[type="date"]');
     dateInputs.forEach(input => {
@@ -29,7 +40,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedDate = new Date(this.value);
             const today = new Date();
             if (selectedDate > today) {
-                alert('Please select a date that is not in the future.');
+                showNotification('Please select a date that is not in the future.', 'warning');
                 this.value = '';
             }
         });
@@ -41,7 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
         input.addEventListener('input', function() {
             const value = parseFloat(this.value);
             if (value < 0) {
-                alert('Amount cannot be negative.');
+                showNotification('Amount cannot be negative.', 'warning');
                 this.value = '';
             }
         });
@@ -54,125 +65,260 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedTime = this.value;
             const [hours, minutes] = selectedTime.split(':');
             if (hours > 23 || minutes > 59) {
-                alert('Please select a valid time.');
+                showNotification('Please select a valid time.', 'warning');
                 this.value = '';
             }
         });
     });
 
+    // Initialize modals
+    const deleteTransactionModal = document.getElementById('deleteTransactionModal');
+    const deleteCategoryModal = document.getElementById('deleteCategoryModal');
+    const editCategoryModal = document.getElementById('editCategoryModal');
+    
+    let deleteTransactionModalInstance = null;
+    let deleteCategoryModalInstance = null;
+    let editCategoryModalInstance = null;
+    
+    if (deleteTransactionModal) {
+        deleteTransactionModalInstance = new bootstrap.Modal(deleteTransactionModal);
+    }
+    if (deleteCategoryModal) {
+        deleteCategoryModalInstance = new bootstrap.Modal(deleteCategoryModal);
+    }
+    if (editCategoryModal) {
+        editCategoryModalInstance = new bootstrap.Modal(editCategoryModal);
+    }
+
     // Handle delete transaction
-    deleteButtons.forEach(button => {
+    const transactionDeleteButtons = document.querySelectorAll('.delete-btn');
+    let transactionToDelete = null;
+
+    transactionDeleteButtons.forEach(button => {
         button.addEventListener('click', function() {
-            const transactionId = this.dataset.id;
-            if (confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
-                fetch(`/transactions/${transactionId}/delete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Remove the row from the table
-                        this.closest('tr').remove();
-                        // Show success message
-                        alert('Transaction deleted successfully');
-                    } else {
-                        alert('Error deleting transaction: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error deleting transaction. Please try again.');
-                });
+            transactionToDelete = this;
+            if (deleteTransactionModalInstance) {
+                // Populate modal with transaction details
+                document.getElementById('deleteTransactionDate').textContent = this.dataset.date;
+                document.getElementById('deleteTransactionCategory').textContent = this.dataset.category;
+                document.getElementById('deleteTransactionDescription').textContent = this.dataset.description;
+                document.getElementById('deleteTransactionAmount').textContent = this.dataset.amount;
+                
+                deleteTransactionModalInstance.show();
+            } else {
+                // Fallback to simple confirmation if modal is not available
+                if (confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
+                    deleteTransaction(this);
+                }
             }
         });
     });
 
-    // Edit Category Modal
-    const editModal = new bootstrap.Modal(document.getElementById('editCategoryModal'));
-    const editButtons = document.querySelectorAll('.edit-category');
-    const categoryDeleteButtons = document.querySelectorAll('.delete-category');
-    const editForm = document.getElementById('editCategoryForm');
-    const saveEditButton = document.getElementById('saveEditCategory');
-
-    // Handle edit button clicks
-    editButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const categoryId = this.dataset.id;
-            const categoryName = this.dataset.name;
-            
-            document.getElementById('editCategoryId').value = categoryId;
-            document.getElementById('editCategoryName').value = categoryName;
-            
-            editModal.show();
+    // Handle confirm delete transaction
+    const confirmDeleteTransactionBtn = document.getElementById('confirmDeleteTransaction');
+    if (confirmDeleteTransactionBtn) {
+        confirmDeleteTransactionBtn.addEventListener('click', function() {
+            if (transactionToDelete) {
+                deleteTransaction(transactionToDelete);
+                deleteTransactionModalInstance.hide();
+            }
         });
-    });
+    }
 
-    // Handle save edit button click
-    saveEditButton.addEventListener('click', function() {
-        const categoryId = document.getElementById('editCategoryId').value;
-        const categoryName = document.getElementById('editCategoryName').value;
-
-        fetch(`/categories/${categoryId}/edit`, {
+    function deleteTransaction(button) {
+        const transactionId = button.dataset.id;
+        fetch(`/transactions/${transactionId}/delete`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `categoryName=${encodeURIComponent(categoryName)}`
+                'Content-Type': 'application/json',
+            }
         })
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Update the table row
-                const row = document.querySelector(`.edit-category[data-id="${categoryId}"]`).closest('tr');
-                row.querySelector('td:nth-child(2)').textContent = categoryName;
-                
-                // Close the modal
-                editModal.hide();
-                
+                // Remove the row from the table
+                button.closest('tr').remove();
                 // Show success message
-                alert('Category updated successfully');
+                showNotification('Transaction deleted successfully');
             } else {
-                alert('Error updating category: ' + data.message);
+                showNotification('Error deleting transaction: ' + data.message, 'error');
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Error updating category. Please try again.');
+            showNotification('Error deleting transaction. Please try again.', 'error');
         });
-    });
+    }
 
-    // Handle delete button clicks
-    categoryDeleteButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            const categoryId = this.dataset.id;
-            if (confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
-                fetch(`/categories/${categoryId}/delete`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+    // Handle edit button clicks for categories
+    const editButtons = document.querySelectorAll('.edit-category');
+    if (editButtons.length > 0 && editCategoryModalInstance) {
+        editButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const categoryId = this.dataset.id;
+                const categoryName = this.dataset.name;
+                
+                document.getElementById('editCategoryId').value = categoryId;
+                document.getElementById('editCategoryName').value = categoryName;
+                
+                editCategoryModalInstance.show();
+            });
+        });
+    }
+
+    // Handle save edit button click for categories
+    const saveEditButton = document.getElementById('saveEditCategory');
+    if (saveEditButton) {
+        saveEditButton.addEventListener('click', function() {
+            const categoryId = document.getElementById('editCategoryId').value;
+            const categoryName = document.getElementById('editCategoryName').value;
+
+            fetch(`/categories/${categoryId}/edit`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `categoryName=${encodeURIComponent(categoryName)}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Update the table row
+                    const row = document.querySelector(`.edit-category[data-id="${categoryId}"]`).closest('tr');
+                    row.querySelector('td:nth-child(2)').textContent = categoryName;
+                    
+                    // Close the modal
+                    editCategoryModalInstance.hide();
+                    
+                    // Show success message
+                    showNotification('Category updated successfully');
+                } else {
+                    showNotification('Error updating category: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error updating category. Please try again.', 'error');
+            });
+        });
+    }
+
+    // Handle delete button clicks for categories
+    const categoryDeleteButtons = document.querySelectorAll('.delete-category');
+    if (categoryDeleteButtons.length > 0) {
+        categoryDeleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const categoryId = this.dataset.id;
+                const categoryName = this.dataset.name;
+                
+                if (deleteCategoryModalInstance) {
+                    // Populate modal with category details
+                    document.getElementById('deleteCategoryId').textContent = categoryId;
+                    document.getElementById('deleteCategoryName').textContent = categoryName;
+                    
+                    deleteCategoryModalInstance.show();
+                } else {
+                    // Fallback to simple confirmation if modal is not available
+                    if (confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
+                        deleteCategory(this);
                     }
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        // Remove the row from the table
-                        this.closest('tr').remove();
-                        // Show success message
-                        alert('Category deleted successfully');
-                    } else {
-                        alert('Error deleting category: ' + data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('Error deleting category. Please try again.');
-                });
+                }
+            });
+        });
+    }
+
+    // Handle confirm delete category
+    const confirmDeleteCategoryBtn = document.getElementById('confirmDeleteCategory');
+    if (confirmDeleteCategoryBtn) {
+        confirmDeleteCategoryBtn.addEventListener('click', function() {
+            const button = document.querySelector('.delete-category[data-id="' + 
+                document.getElementById('deleteCategoryId').textContent + '"]');
+            if (button) {
+                deleteCategory(button);
+                deleteCategoryModalInstance.hide();
             }
         });
-    });
+    }
+
+    function deleteCategory(button) {
+        const categoryId = button.dataset.id;
+        fetch(`/categories/${categoryId}/delete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Remove the row from the table
+                button.closest('tr').remove();
+                // Show success message
+                showNotification('Category deleted successfully');
+            } else {
+                showNotification('Error deleting category: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Error deleting category. Please try again.', 'error');
+        });
+    }
+
+    // Category form submission
+    const categoryForm = document.getElementById('categoryForm');
+    if (categoryForm) {
+        categoryForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            
+            fetch('/categories/add', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success notification
+                    showNotification('Category added successfully!', 'success');
+                    
+                    // Clear the form
+                    categoryForm.reset();
+                    
+                    // Optionally refresh the page or update the categories list
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    // Show error notification
+                    showNotification(data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error adding category. Please try again.', 'error');
+            });
+        });
+    }
+
+    // Add category form validation
+    function validateCategoryForm() {
+        const categoryName = document.getElementById('categoryName').value;
+        const categoryId = document.getElementById('categoryId').value;
+
+        if (!categoryName || !categoryId) {
+            showNotification('Please fill in all fields.', 'warning');
+            return false;
+        }
+
+        if (categoryId.length < 4 || categoryId.length > 4) {
+            showNotification('Category ID must be exactly 4 characters.', 'warning');
+            return false;
+        }
+
+        return true;
+    }
 });
 
 // Format currency
@@ -214,24 +360,6 @@ function validateTransactionForm() {
 
     if (parseFloat(amount) <= 0) {
         alert('Amount must be greater than 0.');
-        return false;
-    }
-
-    return true;
-}
-
-// Add category form validation
-function validateCategoryForm() {
-    const categoryName = document.getElementById('categoryName').value;
-    const categoryId = document.getElementById('categoryId').value;
-
-    if (!categoryName || !categoryId) {
-        alert('Please fill in all fields.');
-        return false;
-    }
-
-    if (categoryId.length < 4 || categoryId.length > 4) {
-        alert('Category ID must be exactly 4 characters.');
         return false;
     }
 
