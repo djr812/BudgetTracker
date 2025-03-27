@@ -13,6 +13,70 @@
 
 {% block title %}Categories - Budget Tracker{% endblock %}
 
+{% block styles %}
+<style>
+    /* Custom table styles for categories */
+    .categories-table {
+        width: 100% !important;
+        table-layout: fixed;
+        border-collapse: collapse;
+        border-spacing: 0;
+    }
+    
+    .table-responsive {
+        width: 100%;
+        overflow-x: hidden; /* Prevent horizontal scroll */
+    }
+    
+    .card-body {
+        padding: 1rem !important;
+    }
+    
+    .categories-table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+        padding: 10px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        text-align: left;
+        font-weight: bold;
+    }
+    
+    .categories-table td {
+        padding: 10px;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: middle;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .categories-table tr:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Column-specific styles */
+    .col-id {
+        width: 20% !important;
+    }
+    
+    .col-name {
+        width: 50% !important;
+    }
+    
+    .col-actions {
+        width: 30% !important;
+        text-align: center !important;
+    }
+    
+    /* Actions column centering */
+    .actions-cell {
+        text-align: center !important;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h2>Categories</h2>
@@ -53,20 +117,25 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-striped categories-table">
+                <table class="categories-table" style="width: 100% !important; table-layout: fixed !important; max-width: 100% !important;">
+                    <colgroup>
+                        <col style="width: 20% !important;">
+                        <col style="width: 60% !important;">
+                        <col style="width: 20% !important;">
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th scope="col" style="width: 20%;">Category ID</th>
-                            <th scope="col" style="width: 50%;">Category Name</th>
-                            <th scope="col" style="width: 30%;">Actions</th>
+                            <th style="width: 20% !important; text-align: left;">Category ID</th>
+                            <th style="width: 60% !important; text-align: left;">Category Name</th>
+                            <th style="width: 20% !important; text-align: center;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="categoryTableBody">
                         {% for category in categories %}
                         <tr data-id="{{ category.catID }}">
-                            <td>{{ category.catID }}</td>
-                            <td>{{ category.catName }}</td>
-                            <td class="text-center">
+                            <td style="width: 20% !important; text-align: left;">{{ category.catID }}</td>
+                            <td style="width: 50% !important; text-align: left;">{{ category.catName }}</td>
+                            <td style="width: 30% !important; text-align: center;">
                                 <button type="button" class="btn btn-sm btn-outline-primary edit-category" 
                                         data-id="{{ category.catID }}" 
                                         data-name="{{ category.catName }}">

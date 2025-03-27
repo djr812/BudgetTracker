@@ -96,17 +96,15 @@ body {
 }
 
 .table-wrapper {
-    /* height: 350px; */ /* Let's comment this out or make it specific if needed elsewhere */
-    overflow-y: auto;
-    background-color: white;
+    height: 300px !important;
+    overflow-y: auto !important;
+    background-color: white !important; 
 }
 
-/* General table head/body display - potentially problematic */
-/* We will override these for .revenue-table */
 .table thead {
-    /* display: table; */ /* Commenting out or removing if not needed globally */
-    /* width: 100%; */
-    position: sticky;
+    display: table;
+    width: 100%;
+    position: sticky !important; 
     top: 0;
     z-index: 1;
     background-color: #f8f9fa;
@@ -114,17 +112,17 @@ body {
 
 /* Column widths */
 .table th:nth-child(1),
-.table td:nth-child(1) { width: 15%; }
+.table td:nth-child(1) { width: 15% !important; }
 .table th:nth-child(2),
-.table td:nth-child(2) { width: 10%; }
+.table td:nth-child(2) { width: 10% !important; }
 .table th:nth-child(3),
-.table td:nth-child(3) { width: 15%; }
+.table td:nth-child(3) { width: 15% !important; }
 .table th:nth-child(4),
-.table td:nth-child(4) { width: 35%; }
+.table td:nth-child(4) { width: 35% !important; }
 .table th:nth-child(5),
-.table td:nth-child(5) { width: 15%; }
+.table td:nth-child(5) { width: 15% !important; }
 .table th:nth-child(6),
-.table td:nth-child(6) { width: 10%; }
+.table td:nth-child(6) { width: 10% !important; }
 
 /* Navigation Styles */
 .navbar {
@@ -220,6 +218,10 @@ body {
 /* Amount column (Header remains centered, Data cell is right-aligned) */
 .revenue-table td.text-end {
     text-align: right !important; /* Keep data cell right-aligned */
+}
+
+.revenue-table td.text-left {
+    text-align: left !important; /* Keep data cell left-aligned */
 }
 
 /* Actions column (Header remains centered, Data cell is centered) */

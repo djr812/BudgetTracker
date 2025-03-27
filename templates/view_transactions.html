@@ -58,68 +58,52 @@
     }
 
     .table-wrapper {
-        height: 100px;  /* Reduced height to show only 4 rows */
+        height: 100%;
         overflow-y: auto;
         background-color: white;
     }
 
-    /* Table styles */
-    .table {
-        margin-bottom: 0;
+    /* Simple table styles */
+    .transactions-table {
         width: 100%;
+        table-layout: fixed;
+        border-collapse: collapse;
     }
-
-    /* Header styles */
-    .table thead {
-        position: sticky;
-        top: 0;
-        background-color: #f8f9fa;
-        z-index: 1;
-    }
-
-    .table thead th {
+    
+    .transactions-table th {
         background-color: #f8f9fa;
         border-bottom: 2px solid #dee2e6;
-        padding: 0.5rem;  /* Reduced padding */
-        text-align: left;
+        padding: 8px;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        text-align: center;
+        font-weight: bold;
     }
-
-    /* Body styles */
-    .table tbody tr {
-        height: 20px;  /* Reduced row height */
-    }
-
-    .table tbody td {
-        padding: 0.5rem;  /* Reduced padding */
+    
+    .transactions-table td {
+        padding: 8px;
+        border-bottom: 1px solid #dee2e6;
         vertical-align: middle;
-        text-align: left;
+        white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        white-space: nowrap;
     }
-
-    /* Column widths */
-    .table th:nth-child(1),
-    .table td:nth-child(1) { width: 15%; }
-    .table th:nth-child(2),
-    .table td:nth-child(2) { width: 10%; }
-    .table th:nth-child(3),
-    .table td:nth-child(3) { width: 15%; }
-    .table th:nth-child(4),
-    .table td:nth-child(4) { width: 35%; }
-    .table th:nth-child(5),
-    .table td:nth-child(5) { width: 15%; }
-    .table th:nth-child(6),
-    .table td:nth-child(6) { width: 10%; }
+    
+    .transactions-table tr:hover {
+        background-color: rgba(0, 0, 0, 0.05);
+    }
+    
+    /* Text alignment */
+    .text-center { text-align: center; }
+    .text-left { text-align: left; }
+    .text-right { text-align: right; }
 
     /* Button group styles */
     .btn-group {
         display: flex;
         gap: 0.25rem;
-    }
-    .btn-group .btn {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8rem;
+        justify-content: center;
     }
 </style>
 {% endblock %}
@@ -182,31 +166,39 @@
             <div class="card-body">
                 <div class="table-container">
                     <div class="table-wrapper">
-                        <table class="table table-hover">
+                        <table class="transactions-table">
+                            <colgroup>
+                                <col width="15%">
+                                <col width="10%">
+                                <col width="15%">
+                                <col width="35%">
+                                <col width="15%">
+                                <col width="10%">
+                            </colgroup>
                             <thead>
                                 <tr>
-                                    <th scope="col">Date</th>
-                                    <th scope="col">Time</th>
-                                    <th scope="col">Category</th>
-                                    <th scope="col">Description</th>
-                                    <th scope="col">Amount</th>
-                                    <th scope="col">Actions</th>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Category</th>
+                                    <th class="text-left" style="padding-left: 16px !important;">Description</th>
+                                    <th>Amount</th>
+                                    <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for transaction in transactions %}
                                 <tr>
-                                    <td>{{ transaction.tranDate.strftime('%d-%m-%Y') }}</td>
-                                    <td>{{ transaction.tranTime }}</td>
-                                    <td>{{ transaction.category.catName }}</td>
-                                    <td>{{ transaction.tranDescription }}</td>
-                                    <td>${{ "%.2f"|format(transaction.tranAmount) }}</td>
-                                    <td>
+                                    <td class="text-left">{{ transaction.tranDate.strftime('%d-%m-%Y') }}</td>
+                                    <td class="text-left">{{ transaction.tranTime }}</td>
+                                    <td class="text-left" style="padding-right: 16px !important;">{{ transaction.category.catName }}</td>
+                                    <td class="text-left" style="padding-left: 16px !important;">{{ transaction.tranDescription }}</td>
+                                    <td class="text-right">${{ "%.2f"|format(transaction.tranAmount) }}</td>
+                                    <td class="text-center">
                                         <div class="btn-group">
                                             <a href="{{ url_for('edit_transaction', tran_id=transaction.tranID) }}" class="btn btn-sm btn-outline-primary">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger" 
+                                            <button type="button" class="btn btn-sm btn-outline-danger"
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#deleteTransactionModal"
                                                     data-transaction-id="{{ transaction.tranID }}"
