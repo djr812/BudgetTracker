@@ -380,6 +380,7 @@ def view_transactions():
     category = request.args.get('category')
     date_from = request.args.get('date_from')
     date_to = request.args.get('date_to')
+    search_term = request.args.get('search', '')
 
     # Set default dates to current year if not provided
     current_year = datetime.now().year
@@ -400,6 +401,8 @@ def view_transactions():
         query = query.filter(Transaction.tranDate >= datetime.strptime(date_from, '%Y-%m-%d').date())
     if date_to:
         query = query.filter(Transaction.tranDate <= datetime.strptime(date_to, '%Y-%m-%d').date())
+    if search_term:
+        query = query.filter(Transaction.tranDescription.ilike(f'%{search_term}%'))
 
     # Order by date and time
     query = query.order_by(Transaction.tranDate.desc(), Transaction.tranTime.desc())
@@ -418,7 +421,8 @@ def view_transactions():
                          date_from=date_from,
                          date_to=date_to,
                          current_page=page,
-                         total_pages=pagination.pages)
+                         total_pages=pagination.pages,
+                         search_term=search_term)
 
 @app.route('/transactions/<tran_id>/edit', methods=['GET', 'POST'])
 @login_required

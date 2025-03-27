@@ -185,7 +185,7 @@
                             <tbody>
                                 {% for transaction in transactions %}
                                 <tr>
-                                    <td>{{ transaction.tranDate.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ transaction.tranDate.strftime('%d-%m-%Y') }}</td>
                                     <td>{{ transaction.tranTime }}</td>
                                     <td>{{ transaction.category.catName }}</td>
                                     <td>{{ transaction.tranDescription }}</td>
@@ -199,7 +199,7 @@
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#deleteTransactionModal"
                                                     data-transaction-id="{{ transaction.tranID }}"
-                                                    data-transaction-date="{{ transaction.tranDate.strftime('%Y-%m-%d') }}"
+                                                    data-transaction-date="{{ transaction.tranDate.strftime('%d-%m-%Y') }}"
                                                     data-transaction-time="{{ transaction.tranTime }}"
                                                     data-transaction-category="{{ transaction.category.catName }}"
                                                     data-transaction-description="{{ transaction.tranDescription }}"

@@ -96,28 +96,20 @@ body {
 }
 
 .table-wrapper {
-    height: 350px;
+    /* height: 350px; */ /* Let's comment this out or make it specific if needed elsewhere */
     overflow-y: auto;
     background-color: white;
 }
 
+/* General table head/body display - potentially problematic */
+/* We will override these for .revenue-table */
 .table thead {
-    display: table;
-    width: 100%;
+    /* display: table; */ /* Commenting out or removing if not needed globally */
+    /* width: 100%; */
     position: sticky;
     top: 0;
     z-index: 1;
     background-color: #f8f9fa;
-}
-
-.table tbody {
-    display: table;
-    width: 100%;
-}
-
-.table tbody tr {
-    display: table-row;
-    width: 100%;
 }
 
 /* Column widths */
@@ -169,4 +161,73 @@ body {
     .table-responsive {
         margin-bottom: 0;
     }
+}
+
+/* Revenue History Table Styles */
+.revenue-table {
+    width: 100%;          /* Ensure the table takes the full width */
+    table-layout: fixed;  /* Use fixed layout */
+    border-collapse: collapse; /* Optional: for cleaner borders */
+}
+
+/* Override general thead/tbody display for revenue-table */
+.revenue-table thead {
+    display: table-header-group; /* Default thead display */
+    width: auto; /* Reset width */
+    position: static; /* Reset position */
+}
+
+.revenue-table tbody {
+    display: table-row-group; /* Default tbody display */
+    width: auto; /* Reset width */
+}
+
+.revenue-table tbody tr {
+    display: table-row; /* Default tr display */
+    width: auto; /* Reset width */
+}
+
+.revenue-table th,
+.revenue-table td {
+    width: 20%;           /* Distribute width evenly across 5 columns */
+    padding: 0.75rem;     /* Standard padding */
+    white-space: nowrap;  /* Prevent text wrapping */
+    overflow: hidden;     /* Hide overflow */
+    text-overflow: ellipsis; /* Add ellipsis for overflow */
+    vertical-align: middle; /* Align content vertically */
+}
+
+/* Default header alignment to center */
+.revenue-table th {
+    text-align: center;    /* Center headers by default */
+    vertical-align: middle; /* Ensure vertical alignment is consistent */
+}
+
+/* Left-align the first three headers (Date, Category, Description) */
+.revenue-table thead th:nth-child(1),
+.revenue-table thead th:nth-child(2),
+.revenue-table thead th:nth-child(3) {
+    text-align: left;
+}
+
+/* Data cell default alignment */
+.revenue-table td {
+    text-align: left;     /* Align data cells left by default */
+    vertical-align: middle; /* Ensure vertical alignment is consistent */
+}
+
+/* Specific alignments from the original HTML */
+/* Amount column (Header remains centered, Data cell is right-aligned) */
+.revenue-table td.text-end {
+    text-align: right !important; /* Keep data cell right-aligned */
+}
+
+/* Actions column (Header remains centered, Data cell is centered) */
+.revenue-table td.text-center {
+    text-align: center !important; /* Keep data cell center-aligned */
+}
+
+/* Categories Page Table Styles */
+.categories-table th:last-child {
+    text-align: center;
 } 

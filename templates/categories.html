@@ -37,20 +37,22 @@
 
     <!-- Categories Table -->
     <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">Existing Categories</h5>
+        </div>
         <div class="card-body">
-            <h5 class="card-title">Existing Categories</h5>
             <div class="table-responsive">
-                <table class="table table-striped">
+                <table class="table table-striped categories-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Name</th>
-                            <th>Actions</th>
+                            <th scope="col" style="width: 20%;">Category ID</th>
+                            <th scope="col" style="width: 50%;">Category Name</th>
+                            <th scope="col" style="width: 30%;">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="categoryTableBody">
                         {% for category in categories %}
-                        <tr>
+                        <tr data-id="{{ category.catID }}">
                             <td>{{ category.catID }}</td>
                             <td>{{ category.catName }}</td>
                             <td class="text-center">

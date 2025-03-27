@@ -55,7 +55,7 @@
                             <tbody>
                                 {% for transaction in recent_transactions %}
                                 <tr>
-                                    <td>{{ transaction.tranDate.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ transaction.tranDate.strftime('%d-%m-%Y') }}</td>
                                     <td>{{ transaction.category.catName }}</td>
                                     <td>{{ transaction.tranDescription }}</td>
                                     <td>${{ "%.2f"|format(transaction.tranAmount) }}</td>
@@ -93,7 +93,7 @@
                             <tbody>
                                 {% for revenue in recent_revenues %}
                                 <tr>
-                                    <td>{{ revenue.revDate.strftime('%Y-%m-%d') }}</td>
+                                    <td>{{ revenue.revDate.strftime('%d-%m-%Y') }}</td>
                                     <td>{{ revenue.revType|title }}</td>
                                     <td>{{ revenue.revDescription }}</td>
                                     <td>${{ "%.2f"|format(revenue.revAmount) }}</td>
