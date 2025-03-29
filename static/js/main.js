@@ -1,3 +1,13 @@
+import config from './config.js';
+
+// Make config available globally
+window.config = config;
+
+// Initialize modals globally
+let deleteTransactionModalInstance = null;
+let deleteCategoryModalInstance = null;
+let editCategoryModalInstance = null;
+
 // Form validation
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize toast
@@ -29,6 +39,9 @@ document.addEventListener('DOMContentLoaded', function() {
         
         toast.show();
     }
+
+    // Make showNotification available globally
+    window.showNotification = showNotification;
 
     // Form validation
     const forms = document.querySelectorAll('form');
@@ -85,12 +98,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteCategoryModal = document.getElementById('deleteCategoryModal');
     const editCategoryModal = document.getElementById('editCategoryModal');
     
-    let deleteTransactionModalInstance = null;
-    let deleteCategoryModalInstance = null;
-    let editCategoryModalInstance = null;
-    
     if (deleteTransactionModal) {
         deleteTransactionModalInstance = new bootstrap.Modal(deleteTransactionModal);
+        // Store the transaction ID in the modal element itself
+        deleteTransactionModal.dataset.transactionId = null;
     }
     if (deleteCategoryModal) {
         deleteCategoryModalInstance = new bootstrap.Modal(deleteCategoryModal);
@@ -99,89 +110,81 @@ document.addEventListener('DOMContentLoaded', function() {
         editCategoryModalInstance = new bootstrap.Modal(editCategoryModal);
     }
 
-    // Handle delete transaction
-    const transactionDeleteButtons = document.querySelectorAll('.delete-btn');
-    let transactionToDelete = null;
-
-    transactionDeleteButtons.forEach(button => {
-        button.addEventListener('click', function() {
-            transactionToDelete = this;
-            if (deleteTransactionModalInstance) {
-                // Populate modal with transaction details
-                document.getElementById('deleteTransactionDate').textContent = this.dataset.date;
-                document.getElementById('deleteTransactionCategory').textContent = this.dataset.category;
-                document.getElementById('deleteTransactionDescription').textContent = this.dataset.description;
-                document.getElementById('deleteTransactionAmount').textContent = this.dataset.amount;
-                
-                deleteTransactionModalInstance.show();
-            } else {
-                // Fallback to simple confirmation if modal is not available
-                if (confirm('Are you sure you want to delete this transaction? This action cannot be undone.')) {
-                    deleteTransaction(this);
-                }
-            }
-        });
+    // Handle delete button clicks for transactions using event delegation
+    document.addEventListener('click', function(event) {
+        const deleteButton = event.target.closest('.delete-btn');
+        if (deleteButton && deleteTransactionModal) {
+            const transactionId = deleteButton.dataset.id;
+            const transactionDate = deleteButton.dataset.date;
+            const transactionTime = deleteButton.dataset.time;
+            const transactionCategory = deleteButton.dataset.category;
+            const transactionDescription = deleteButton.dataset.description;
+            const transactionAmount = deleteButton.dataset.amount;
+            
+            // Store the transaction ID in the modal element
+            deleteTransactionModal.dataset.transactionId = transactionId;
+            
+            // Populate modal with transaction details
+            document.getElementById('deleteTransactionDate').textContent = transactionDate;
+            document.getElementById('deleteTransactionTime').textContent = transactionTime;
+            document.getElementById('deleteTransactionCategory').textContent = transactionCategory;
+            document.getElementById('deleteTransactionDescription').textContent = transactionDescription;
+            document.getElementById('deleteTransactionAmount').textContent = transactionAmount;
+            
+            // Show the modal
+            deleteTransactionModalInstance.show();
+        }
     });
 
     // Handle confirm delete transaction
     const confirmDeleteTransactionBtn = document.getElementById('confirmDeleteTransaction');
     if (confirmDeleteTransactionBtn) {
         confirmDeleteTransactionBtn.addEventListener('click', function() {
-            if (transactionToDelete) {
-                deleteTransaction(transactionToDelete);
+            const transactionId = deleteTransactionModal.dataset.transactionId;
+            if (!transactionId) return;
+
+            fetch(`${config.serverURL}transactions/${transactionId}/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Remove the row from the table
+                    const row = document.querySelector(`.delete-btn[data-id="${transactionId}"]`).closest('tr');
+                    if (row) {
+                        row.remove();
+                        showNotification('Transaction deleted successfully');
+                    }
+                } else {
+                    showNotification('Error deleting transaction: ' + data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('Error deleting transaction. Please try again.', 'error');
+            })
+            .finally(() => {
                 deleteTransactionModalInstance.hide();
-            }
-        });
-    }
-
-    /**
-     * Function Name: deleteTransaction
-     * Description: Deletes a transaction and updates the UI accordingly.
-     * @param {HTMLElement} button - The delete button element that triggered the deletion.
-     * @returns {void}
-     * @throws {Error} Throws an error if the API call fails.
-     * @example deleteTransaction(buttonElement);
-     */
-    function deleteTransaction(button) {
-        const transactionId = button.dataset.id;
-        fetch(`/transactions/${transactionId}/delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Remove the row from the table
-                button.closest('tr').remove();
-                // Show success message
-                showNotification('Transaction deleted successfully');
-            } else {
-                showNotification('Error deleting transaction: ' + data.message, 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showNotification('Error deleting transaction. Please try again.', 'error');
-        });
-    }
-
-    // Handle edit button clicks for categories
-    const editButtons = document.querySelectorAll('.edit-category');
-    if (editButtons.length > 0 && editCategoryModalInstance) {
-        editButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const categoryId = this.dataset.id;
-                const categoryName = this.dataset.name;
-                
-                document.getElementById('editCategoryId').value = categoryId;
-                document.getElementById('editCategoryName').value = categoryName;
-                
-                editCategoryModalInstance.show();
             });
         });
     }
+
+    // Handle edit button clicks for categories using event delegation
+    document.addEventListener('click', function(event) {
+        const editButton = event.target.closest('.edit-category');
+        if (editButton && editCategoryModalInstance) {
+            const categoryId = editButton.dataset.id;
+            const categoryName = editButton.dataset.name;
+            
+            document.getElementById('editCategoryId').value = categoryId;
+            document.getElementById('editCategoryName').value = categoryName;
+            
+            editCategoryModalInstance.show();
+        }
+    });
 
     // Handle save edit button click for categories
     const saveEditButton = document.getElementById('saveEditCategory');
@@ -190,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const categoryId = document.getElementById('editCategoryId').value;
             const categoryName = document.getElementById('editCategoryName').value;
 
-            fetch(`/categories/${categoryId}/edit`, {
+            fetch(`${config.serverURL}categories/${categoryId}/edit`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
@@ -220,36 +223,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle delete button clicks for categories
-    const categoryDeleteButtons = document.querySelectorAll('.delete-category');
-    if (categoryDeleteButtons.length > 0) {
-        categoryDeleteButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                const categoryId = this.dataset.id;
-                const categoryName = this.dataset.name;
-                
-                if (deleteCategoryModalInstance) {
-                    // Populate modal with category details
-                    document.getElementById('deleteCategoryId').textContent = categoryId;
-                    document.getElementById('deleteCategoryName').textContent = categoryName;
-                    
-                    deleteCategoryModalInstance.show();
-                } else {
-                    // Fallback to simple confirmation if modal is not available
-                    if (confirm('Are you sure you want to delete this category? This action cannot be undone.')) {
-                        deleteCategory(this);
-                    }
-                }
-            });
-        });
-    }
+    // Handle delete button clicks for categories using event delegation
+    document.addEventListener('click', function(event) {
+        const deleteButton = event.target.closest('.delete-category');
+        if (deleteButton && deleteCategoryModalInstance) {
+            const categoryId = deleteButton.dataset.id;
+            const categoryName = deleteButton.dataset.name;
+            
+            // Populate modal with category details
+            document.getElementById('deleteCategoryId').textContent = categoryId;
+            document.getElementById('deleteCategoryName').textContent = categoryName;
+            
+            deleteCategoryModalInstance.show();
+        }
+    });
 
     // Handle confirm delete category
     const confirmDeleteCategoryBtn = document.getElementById('confirmDeleteCategory');
     if (confirmDeleteCategoryBtn) {
         confirmDeleteCategoryBtn.addEventListener('click', function() {
-            const button = document.querySelector('.delete-category[data-id="' + 
-                document.getElementById('deleteCategoryId').textContent + '"]');
+            const categoryId = document.getElementById('deleteCategoryId').textContent;
+            const button = document.querySelector(`.delete-category[data-id="${categoryId}"]`);
             if (button) {
                 deleteCategory(button);
                 deleteCategoryModalInstance.hide();
@@ -267,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
      */
     function deleteCategory(button) {
         const categoryId = button.dataset.id;
-        fetch(`/categories/${categoryId}/delete`, {
+        fetch(`${config.serverURL}categories/${categoryId}/delete`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -290,34 +284,55 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Category form submission
+    // Handle add category form submission
     const categoryForm = document.getElementById('categoryForm');
     if (categoryForm) {
-        categoryForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+        categoryForm.addEventListener('submit', function(event) {
+            event.preventDefault();
             
-            const formData = new FormData(this);
-            
-            fetch('/categories/add', {
+            const categoryId = document.getElementById('categoryId').value;
+            const categoryName = document.getElementById('categoryName').value;
+
+            fetch(`${config.serverURL}categories/add`, {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `categoryId=${encodeURIComponent(categoryId)}&categoryName=${encodeURIComponent(categoryName)}`
             })
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    // Show success notification
-                    showNotification('Category added successfully!', 'success');
+                    // Add new row to the table
+                    const tbody = document.getElementById('categoryTableBody');
+                    const newRow = document.createElement('tr');
+                    newRow.dataset.id = categoryId;
+                    newRow.innerHTML = `
+                        <td style="width: 20% !important; text-align: left;">${categoryId}</td>
+                        <td style="width: 50% !important; text-align: left;">${categoryName}</td>
+                        <td style="width: 30% !important; text-align: center;">
+                            <button type="button" class="btn btn-sm btn-outline-primary edit-category" 
+                                    data-id="${categoryId}" 
+                                    data-name="${categoryName}">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger delete-category" 
+                                    data-id="${categoryId}"
+                                    data-name="${categoryName}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(newRow);
                     
-                    // Clear the form
+                    // Clear the form and reset validation state
                     categoryForm.reset();
+                    categoryForm.classList.remove('was-validated');
                     
-                    // Optionally refresh the page or update the categories list
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
+                    // Show success message
+                    showNotification('Category added successfully');
                 } else {
-                    // Show error notification
-                    showNotification(data.message, 'error');
+                    showNotification('Error adding category: ' + data.message, 'error');
                 }
             })
             .catch(error => {
@@ -325,29 +340,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 showNotification('Error adding category. Please try again.', 'error');
             });
         });
-    }
-
-    /**
-     * Function Name: validateCategoryForm
-     * Description: Validates the category form inputs before submission.
-     * @returns {boolean} True if the form is valid, false otherwise.
-     * @example if (validateCategoryForm()) { submitForm(); }
-     */
-    function validateCategoryForm() {
-        const categoryName = document.getElementById('categoryName').value;
-        const categoryId = document.getElementById('categoryId').value;
-
-        if (!categoryName || !categoryId) {
-            showNotification('Please fill in all fields.', 'warning');
-            return false;
-        }
-
-        if (categoryId.length < 4 || categoryId.length > 4) {
-            showNotification('Category ID must be exactly 4 characters.', 'warning');
-            return false;
-        }
-
-        return true;
     }
 });
 

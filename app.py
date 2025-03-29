@@ -22,7 +22,7 @@ Usage:
 ================================================================================
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, Response, abort, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_migrate import Migrate
@@ -56,6 +56,13 @@ app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 app.config['MAIL_DEFAULT_SENDER'] = ('Budget Tracker', app.config['MAIL_USERNAME'])
 app.config['MAIL_DEBUG'] = False
+
+# Get server URL from environment variable
+SERVER_URL = os.getenv('BT_SERVER_URL', '/')
+
+@app.context_processor
+def inject_server_url():
+    return dict(server_url=SERVER_URL)
 
 # Initialize extensions
 db = SQLAlchemy(app)
@@ -1349,6 +1356,19 @@ def delete_revenue(revenue_id):
     
     flash('Revenue deleted successfully!', 'success')
     return redirect(url_for('view_revenues'))
+
+
+@app.route('/static/js/<path:filename>')
+def serve_js(filename):
+    """
+    Function Name:  serve_js
+    Description:    Serves JavaScript files with the correct MIME type
+    Args:           filename (str): The name of the JavaScript file to serve
+    Returns:        flask.Response: The JavaScript file with correct MIME type
+    Raises:         None
+    """
+    return app.send_static_file(f'js/{filename}')
+
 
 if __name__ == '__main__':
     app.run(debug=True) 

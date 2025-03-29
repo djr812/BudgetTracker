@@ -198,15 +198,13 @@
                                             <a href="{{ url_for('edit_transaction', tran_id=transaction.tranID) }}" class="btn btn-sm btn-outline-primary">
                                                 <i class="fas fa-edit"></i>
                                             </a>
-                                            <button type="button" class="btn btn-sm btn-outline-danger"
-                                                    data-bs-toggle="modal" 
-                                                    data-bs-target="#deleteTransactionModal"
-                                                    data-transaction-id="{{ transaction.tranID }}"
-                                                    data-transaction-date="{{ transaction.tranDate.strftime('%d-%m-%Y') }}"
-                                                    data-transaction-time="{{ transaction.tranTime }}"
-                                                    data-transaction-category="{{ transaction.category.catName }}"
-                                                    data-transaction-description="{{ transaction.tranDescription }}"
-                                                    data-transaction-amount="{{ "%.2f"|format(transaction.tranAmount) }}">
+                                            <button type="button" class="btn btn-sm btn-outline-danger delete-btn"
+                                                    data-id="{{ transaction.tranID }}"
+                                                    data-date="{{ transaction.tranDate.strftime('%d-%m-%Y') }}"
+                                                    data-time="{{ transaction.tranTime }}"
+                                                    data-category="{{ transaction.category.catName }}"
+                                                    data-description="{{ transaction.tranDescription }}"
+                                                    data-amount="{{ "%.2f"|format(transaction.tranAmount) }}">
                                                 <i class="fas fa-trash"></i>
                                             </button>
                                         </div>
@@ -250,55 +248,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const deleteModal = document.getElementById('deleteTransactionModal');
-    const confirmDeleteBtn = document.getElementById('confirmDeleteTransaction');
-    let transactionIdToDelete = null;
-
-    // Handle delete button clicks
-    document.querySelectorAll('[data-bs-target="#deleteTransactionModal"]').forEach(button => {
-        button.addEventListener('click', function() {
-            transactionIdToDelete = this.getAttribute('data-transaction-id');
-            document.getElementById('deleteTransactionDate').textContent = this.getAttribute('data-transaction-date');
-            document.getElementById('deleteTransactionTime').textContent = this.getAttribute('data-transaction-time');
-            document.getElementById('deleteTransactionCategory').textContent = this.getAttribute('data-transaction-category');
-            document.getElementById('deleteTransactionDescription').textContent = this.getAttribute('data-transaction-description');
-            document.getElementById('deleteTransactionAmount').textContent = this.getAttribute('data-transaction-amount');
-        });
-    });
-
-    // Handle delete confirmation
-    confirmDeleteBtn.addEventListener('click', function() {
-        if (!transactionIdToDelete) return;
-
-        fetch(`/transactions/${transactionIdToDelete}/delete`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Remove the row from the table
-                const row = document.querySelector(`[data-transaction-id="${transactionIdToDelete}"]`).closest('tr');
-                row.remove();
-                showNotification('Transaction deleted successfully', 'success');
-            } else {
-                showNotification(data.message || 'Error deleting transaction', 'error');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showNotification('Error deleting transaction', 'error');
-        })
-        .finally(() => {
-            // Close the modal
-            const modal = bootstrap.Modal.getInstance(deleteModal);
-            modal.hide();
-        });
-    });
-});
-</script>
+<script type="module" src="{{ url_for('static', filename='js/config.js') }}"></script>
+<script type="module" src="{{ url_for('static', filename='js/main.js') }}"></script>
 {% endblock %} 
