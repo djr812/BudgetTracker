@@ -44,8 +44,8 @@ app = Flask(__name__)
 
 application = app
 
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SECRET_KEY'] = os.getenv('BT_SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('BT_DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Email configuration
@@ -53,8 +53,8 @@ app.config['MAIL_SERVER'] = 'mx3594.syd1.mymailhosting.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = False
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = os.getenv('EMAIL_USER')
-app.config['MAIL_PASSWORD'] = os.getenv('EMAIL_PASSWORD')
+app.config['MAIL_USERNAME'] = os.getenv('BT_EMAIL_USER')
+app.config['MAIL_PASSWORD'] = os.getenv('BT_EMAIL_PASSWORD')
 app.config['MAIL_MAX_EMAILS'] = None
 app.config['MAIL_ASCII_ATTACHMENTS'] = False
 app.config['MAIL_DEFAULT_SENDER'] = ('Budget Tracker', app.config['MAIL_USERNAME'])
