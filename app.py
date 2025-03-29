@@ -41,6 +41,9 @@ from sqlalchemy.sql import func
 
 
 app = Flask(__name__)
+
+application = app
+
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -1371,4 +1374,4 @@ def serve_js(filename):
 
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(debug=False) 
